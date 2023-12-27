@@ -1,46 +1,60 @@
-import CPUContext from "./cpu";
+import  { CPUContext, CPUState } from "./cpu";
 
 class Emulator {
-    private cpu: CPUContext;
+    private _cpu: CPUContext;
+
+    changeStateCallback: Function | null = null;
 
     constructor(romData: Uint8Array) {
-        this.cpu = new CPUContext(romData);
+        this._cpu = new CPUContext(romData);
     };
 
     start_emu() {
-        this.cpu.start_cpu();
+        this._cpu.start_cpu();
+        this.cpu_step();
+    }
 
-        while(this.cpu.isRunning) {
-            //Fetch opcode
-            const opcode = this.fetch_opcode();
-            const args = this.fetch_args(opcode);
-            if(!this.cpu.execute_instruction(opcode, args)) {
-                console.log("Execute instruction failed");
-                break;
-            }
+    private cpu_step() {
+        const opcode = this.fetch_opcode();
+        console.log("instr: " + this._cpu.pc.toString(16) + " -- opcode: 0x" + opcode.toString(16));
+        const args = this.fetch_args(opcode);
+        this._cpu.execute_instruction(opcode, args);
+
+        //Send cpu state to react component
+        this.updateState(this.cpu.pc);
+
+        if (this.cpu.isRunning) {
+            requestAnimationFrame(() => this.cpu_step());
         }
-        console.log("Cpu stopped");
+    }
+
+    updateState(arg: number) {
+        if(this.changeStateCallback) {
+            this.changeStateCallback(arg.toString());
+        }
     }
 
     private fetch_opcode(): number {
-        console.log("pc = " + this.cpu.pc.toString(16));
-        const opcode = this.cpu.mmu.read_byte(this.cpu.pc++);
+        const opcode = this._cpu.mmu.read_byte(this._cpu.pc++);
         return opcode;
     }
 
     private fetch_args(opcode: number): Uint8Array {
         // Subtract one because we already read opcode
-        const argLen = this.cpu.get_instruction_len(opcode) - 1;
+        const argLen = this._cpu.get_instruction_len(opcode) - 1;
         if(argLen < 0) {
             throw new Error(`Invalid opcode ${opcode.toString(16)} found while fetching args`);
         }
         if(argLen === 0) {
             return new Uint8Array([]);
         }
-        const args = this.cpu.mmu.read(this.cpu.pc, argLen);
-        console.log(args);
-        this.cpu.pc += argLen;
+        const args = this._cpu.mmu.read(this._cpu.pc, argLen);
+        this._cpu.pc += argLen;
         return args;
+    }
+
+    public get cpu(): CPUContext {
+        return this._cpu;
     }
 
 };
