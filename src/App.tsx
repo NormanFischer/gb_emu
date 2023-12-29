@@ -46,6 +46,9 @@ function App() {
         <>
           <h2>pc: {currentPC}</h2>
           <h2>A: {currentA}</h2>
+          <button onClick={() => {
+            emu.cpu.isRunning = false;
+          }}>Stop</button>
         </>
       }
       <canvas id="gameScreen" width="160" height="144" style={{border: "1px solid #d3d3d3"}}></canvas>

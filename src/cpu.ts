@@ -48,11 +48,13 @@ class CPUContext {
         0x2C: {op : this.INC_L.bind(this),    len: 1},
         0x2D: {op : this.DEC_L.bind(this),    len: 1},
         0x2E: {op : this.LD_L_D8.bind(this),  len: 2},
+        0x2F: {op : this.CPL.bind(this),      len: 1},
     
         0x31: {op : this.LD_SP_D16.bind(this),len: 3},
         0x32: {op : this.LD_MHLD_A.bind(this),len: 1},
         0x35: {op : this.DEC_MHL.bind(this),  len: 1},
         0x36: {op : this.LD_MHL_D8.bind(this),len: 2},
+        0x37: {op : this.SCF.bind(this),      len: 1},
         0x3A: {op : this.LD_A_MHLD.bind(this),len: 1},
         0x3B: {op : this.DEC_SP.bind(this),   len: 1},
         0x3C: {op : this.INC_A.bind(this),    len: 1},
@@ -128,6 +130,7 @@ class CPUContext {
         0xBF: {op : this.CP_A.bind(this),     len: 1},
 
         0xC3: {op : this.JP_A16.bind(this),   len: 3},
+        0xC9: {op : this.RET.bind(this),      len: 1},
         0xCD: {op : this.CALL_A16.bind(this), len: 3},
         0xCE: {op : this.ADC_A_D8.bind(this), len: 2},
 
@@ -139,6 +142,7 @@ class CPUContext {
         0xF2: {op : this.LD_A_MC.bind(this),  len: 1},
         0xF3: {op : this.DI.bind(this),       len: 1},
         0xFA: {op : this.LD_A_MA16.bind(this),len: 3},
+        0xFB: {op : this.EI.bind(this),       len: 1},
         0xFE: {op : this.CP_D8.bind(this),    len: 2},
     };
 
@@ -173,6 +177,10 @@ class CPUContext {
 
     //Returns the number of cycles an operation takes to complete
     execute_instruction(opcode: number, args: Uint8Array): number {
+        if(args.length !== this.instructions[opcode].len - 1) {
+            console.log("Invalid argument size for opcode " + opcode);
+            return -1;
+        }
         const op_to_exec = this.instructions[opcode].op;
         return op_to_exec(args);
     }
@@ -403,8 +411,8 @@ class CPUContext {
 
     //0x20 : JR_NZ_R8
     private JR_NZ_R8(args: Uint8Array) {
-        const cond = this.nz();
-        if(cond) {
+        const zeroFlag = this.get_zero();
+        if(!zeroFlag) {
             const e = u8Toi8(args[0]);
             this._pc += e;
             return 12;
@@ -478,6 +486,13 @@ class CPUContext {
         return 8;
     }
 
+    //0x2F : CPL
+    private CPL() {
+        //I hate javascript lol
+        this._state.a = ~(this._state.a) & 0xFF;
+        this.set_flags(undefined, 1, 1, undefined);
+    }
+
     //0x31 : LD_SP_D16
     private LD_SP_D16(args: Uint8Array) {
         const val = leTo16Bit(args[0], args[1]);
@@ -507,6 +522,12 @@ class CPUContext {
         const addr = get_hl(this._state);
         this._mmu.write_byte(addr, args[0]);
         return 12;
+    }
+
+    //0x37 : SCF
+    private SCF() {
+        this.set_flags(undefined, 0, 0, 1);
+        return 4;
     }
 
     //0x3A : LD_A_MHLD
@@ -954,22 +975,34 @@ class CPUContext {
     //0xC3 : JP_A16
     private JP_A16(args: Uint8Array) {
         const addr = leTo16Bit(args[0], args[1]);
-        //console.log("Jumping to: " + addr.toString(16));
+        console.log("Jumping to: " + addr.toString(16));
         this._pc = addr;
+        return 16;
+    }
+
+    //0xC9 : RET
+    private RET() {
+        console.log("Stack pointer at return = " + this._sp.toString(16));
+        const lsb = this._mmu.read_byte(this._sp);
+        this._sp++;
+        const msb = this._mmu.read_byte(this._sp);
+        this._sp++;
+        this._pc = (msb << 8) | lsb;
+        console.log("Returning to pc = " + this._pc);
         return 16;
     }
 
     //0xCD : CALL_A16
     private CALL_A16(args: Uint8Array) {
         const addr = leTo16Bit(args[0], args[1]);
-        console.log("New pc = " + addr.toString(16));
-        this.sp--;
-        //Write msb to stack
-        this._mmu.write_byte(this.sp, args[1]);
-        this.sp--;
-        //Write lsb to stack
-        this._mmu.write_byte(this.sp, args[0]);
-        this.pc = addr;
+        this._sp--;
+        //Write msb of current pc to stack
+        this._mmu.write_byte(this._sp, this._pc >> 8);
+        this._sp--;
+        //also write lsb to stack
+        this._mmu.write_byte(this._sp, this._pc & 0xFF);
+        this._pc = addr;
+        console.log("Stack pointer now = " + this._sp.toString(16));
         return 24;
     }
 
@@ -1022,7 +1055,7 @@ class CPUContext {
 
     //0xF3 : DI
     private DI() {
-        //console.log("Disable interrupts");
+        console.log("Disable interrupts");
         this._IME = 0;
         return 4;
     }
@@ -1033,6 +1066,12 @@ class CPUContext {
         const val = this._mmu.read_byte(addr);
         this._state.a = val;
         return 8;
+    }
+
+    //0xFB : EI
+    private EI() {
+        console.log("Enable interrupts");
+        return 4;
     }
 
     //0xFE : CP_d8
@@ -1173,7 +1212,7 @@ function u8Toi8(val: number): number {
 
 //Add two 8 bit numbers
 function add8Bit(a: number, b: number): {res: number, zero: bit, carry: bit, halfCarry: bit} {
-    const res = (a + b) % 0xFF;
+    const res = (a + b) & 0xFF;
     const zero = (res === 0) ? 1 : 0;
     const carry = (((a + b) & 0xFF) !== 0) ? 1 : 0;
     const halfCarry = ((((a & 0xF) + (b & 0xF)) & 0x10) === 0x10) ? 1 : 0;
@@ -1190,7 +1229,7 @@ function subtract8Bit(a: number, b: number): {res: number, zero: bit, carry: bit
 
 //Add two 8 bit numbers with carry
 function add8BitC(a: number, b: number, C: bit): {res: number, zero: bit, carry: bit, halfCarry: bit} {
-    const res = (a + b + C) % 0xFF;
+    const res = (a + b + C) & 0xFF;
     const zero = (res === 0) ? 1 : 0;
     const carry = (((a + b + C) & 0xFF) !== 0) ? 1 : 0;
     const halfCarry = ((((a & 0xF) + (b & 0xF) + (C & 0xF)) & 0x10) === 0x10) ? 1 : 0;
@@ -1200,7 +1239,7 @@ function add8BitC(a: number, b: number, C: bit): {res: number, zero: bit, carry:
 function add16Bit(a: number, b: number): {res: number, carry: bit, halfCarry: bit} {
     const res = (a + b) & 0xFFFF;
     const carry = (((a + b) & 0xFFF) !== 0) ? 1 : 0;
-    const halfCarry = ((((a & 0xFFF) + (b & 0xFFF)) &0x1000) === 0x1000) ? 1 : 0;
+    const halfCarry = ((((a & 0xFFF) + (b & 0xFFF)) & 0x1000) === 0x1000) ? 1 : 0;
     return {res, carry, halfCarry};
 }
 

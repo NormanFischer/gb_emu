@@ -6,11 +6,11 @@ class HRAM {
     }
 
     read(addr: number): number {
-        return this._hram[addr - 0xFFFE];
+        return this._hram[addr - 0xFF80];
     }
 
     write(addr: number, val: number) {
-        this._hram[addr - 0xFFFE] = val;
+        this._hram[addr - 0xFF80] = val;
     }
 }
 

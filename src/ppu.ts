@@ -14,6 +14,8 @@ class PPU {
     private _mode: number;
     private _modeTime: number;
     private _currentLine: number;
+    private _scy: number;
+    private _scx: number;
     private _vram: Uint8Array;
     
     constructor() {
@@ -22,6 +24,8 @@ class PPU {
         this._mode = 0;
         this._modeTime = 0;
         this._currentLine = 0;
+        this._scy = 0;
+        this._scx = 0;
     }
 
     vram_read(addr: number) {
@@ -36,14 +40,29 @@ class PPU {
 
     io_read(addr: number): number {
         if(addr === 0xFF44) {
+            console.log("ly = " + this._currentLine);
             return this._currentLine;
+        } else if (addr === 0xFF41) {
+            return this._mode;
+        } else if (addr === 0xFF42) {
+            return this._scy;
+        } else if (addr === 0xFF43) {
+            return this._scx;
         }
         return 0;
     }
 
     io_write(addr: number, val: number) {
         if(addr === 0xFF44) {
+            console.log("ly = " + this._currentLine);
             this._currentLine = val;
+        } else if(addr === 0xFF41) {
+            //console.log("Lcd stat write val = " + val.toString(16));
+            this._mode = val;
+        } else if(addr === 0xFF42) {
+            this._scy = val;
+        } else if(addr === 0xFF43) {
+            this._scx = val;
         }
     }
 

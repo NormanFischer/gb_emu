@@ -19,30 +19,33 @@ class Emulator {
 
     private emu_step() {
         let currentCycles = 0;
-        while(currentCycles < CYCLES_PER_FRAME) {
+        while(currentCycles < CYCLES_PER_FRAME && this._cpu.isRunning) {
             const stepCycles = this.cpu_step();
+            this._cpu.pc &= 65535;
             if(stepCycles === -1) {
-                console.log("stopping");
+                console.log("Stopping");
                 return;
             }
             currentCycles += stepCycles;
         }
-        setTimeout(() => this.emu_step(), 1000);
+        //This is where we will render the frame
+        //Send cpu state to react component
+        this.updateState(this._cpu.state.a, this.cpu.pc);
+        if(this._cpu.isRunning) {
+            setTimeout(() => this.emu_step(), 100);
+        }
     }
 
     private cpu_step(): number {
         const opcode = this.fetch_opcode();
         if(!this.cpu.instructions[opcode]) {
-            console.error("Invalid opcode: " + opcode.toString(16));
+            console.error("Invalid opcode found: " + opcode.toString(16));
             this._cpu.isRunning = false;
             return -1;
         }
-        console.log("instr: " + this._cpu.pc.toString(16) + " -- opcode: 0x" + opcode.toString(16));
+        console.log("instr: " + (this._cpu.pc - 1).toString(16) + " -- opcode: 0x" + opcode.toString(16));
         const args = this.fetch_args(opcode);
         const cycles = this._cpu.execute_instruction(opcode, args);
-
-        //Send cpu state to react component
-        this.updateState(this._cpu.state.a, this.cpu.pc);
 
         //Frame rendering
         this._cpu.mmu.ppu.ppu_step(cycles);
