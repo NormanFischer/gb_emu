@@ -1,5 +1,8 @@
 import  { CPUContext, CPUState } from "./cpu";
 
+const CYCLES_PER_FRAME = 69905;
+
+
 class Emulator {
     private _cpu: CPUContext;
 
@@ -11,26 +14,44 @@ class Emulator {
 
     start_emu() {
         this._cpu.start_cpu();
-        this.cpu_step();
+        this.emu_step();
     }
 
-    private cpu_step() {
+    private emu_step() {
+        let currentCycles = 0;
+        while(currentCycles < CYCLES_PER_FRAME) {
+            const stepCycles = this.cpu_step();
+            if(stepCycles === -1) {
+                console.log("stopping");
+                return;
+            }
+            currentCycles += stepCycles;
+        }
+        setTimeout(() => this.emu_step(), 1000);
+    }
+
+    private cpu_step(): number {
         const opcode = this.fetch_opcode();
+        if(!this.cpu.instructions[opcode]) {
+            console.error("Invalid opcode: " + opcode.toString(16));
+            this._cpu.isRunning = false;
+            return -1;
+        }
         console.log("instr: " + this._cpu.pc.toString(16) + " -- opcode: 0x" + opcode.toString(16));
         const args = this.fetch_args(opcode);
-        this._cpu.execute_instruction(opcode, args);
+        const cycles = this._cpu.execute_instruction(opcode, args);
 
         //Send cpu state to react component
-        this.updateState(this.cpu.pc);
+        this.updateState(this._cpu.state.a, this.cpu.pc);
 
-        if (this.cpu.isRunning) {
-            requestAnimationFrame(() => this.cpu_step());
-        }
+        //Frame rendering
+        this._cpu.mmu.ppu.ppu_step(cycles);
+        return cycles;
     }
 
-    updateState(arg: number) {
+    updateState(a: number, pc: number) {
         if(this.changeStateCallback) {
-            this.changeStateCallback(arg.toString());
+            this.changeStateCallback(a.toString(16), pc.toString(16));
         }
     }
 
