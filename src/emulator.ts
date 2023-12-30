@@ -5,11 +5,13 @@ const CYCLES_PER_FRAME = 69905;
 
 class Emulator {
     private _cpu: CPUContext;
+    private vramCanvasContext: CanvasRenderingContext2D;
 
     changeStateCallback: Function | null = null;
 
-    constructor(romData: Uint8Array) {
+    constructor(romData: Uint8Array, vramCanvasContext: CanvasRenderingContext2D) {
         this._cpu = new CPUContext(romData);
+        this.vramCanvasContext = vramCanvasContext;
     };
 
     start_emu() {
@@ -31,8 +33,11 @@ class Emulator {
         //This is where we will render the frame
         //Send cpu state to react component
         this.updateState(this._cpu.state.a, this.cpu.pc);
+
+        //Update vram map
+        this._cpu.mmu.ppu.put_vram_image(this.vramCanvasContext);
         if(this._cpu.isRunning) {
-            setTimeout(() => this.emu_step(), 100);
+            setTimeout(() => this.emu_step(), 16);
         }
     }
 
@@ -43,7 +48,7 @@ class Emulator {
             this._cpu.isRunning = false;
             return -1;
         }
-        console.log("instr: " + (this._cpu.pc - 1).toString(16) + " -- opcode: 0x" + opcode.toString(16));
+        //console.log("instr: " + (this._cpu.pc - 1).toString(16) + " -- opcode: 0x" + opcode.toString(16));
         const args = this.fetch_args(opcode);
         const cycles = this._cpu.execute_instruction(opcode, args);
 

@@ -66,6 +66,50 @@ class PPU {
         }
     }
 
+
+    //Render to the canvas from our vram buffer
+    put_vram_image(ctx: CanvasRenderingContext2D) {
+        //Each tile
+        for(let tile = 0; tile < 384; tile++) {
+            //Render the tile, iterating
+            //thru each word
+            for(let tileWord = 0; tileWord < 8; tileWord++) {
+                const lowByte = this._vram[(16 * tile) + (tileWord * 2)];
+                const highByte = this._vram[(16 * tile) + (tileWord * 2 + 1)];
+                for(let bit = 0; bit < 8; bit++) {
+                    const lowBit = (lowByte & ( 1 << bit )) >> bit;
+                    const highBit = (highByte & ( 1 << bit )) >> bit;
+                    const pixelVal = (highBit << 1) | lowBit;
+                    //Silly
+                    const xPos = tile % 16 * 8 - bit + 7;
+                    const yPos = Math.floor(tile / 16) * 8 + tileWord;
+                    console.log("X = " + xPos + " Y = " + yPos);
+                    switch(pixelVal) {
+                        case 0b00:
+                            //Transparent
+                            ctx.fillStyle = 'rgb(225,225,225)';
+                            break;
+                        case 0b01:
+                            //Darkest green
+                            ctx.fillStyle = 'rgb(48, 98, 48)';
+                            break;
+                        case 0b10:
+                            //Light green
+                            ctx.fillStyle = 'rgb(139, 172, 15)';
+                            break;
+                        case 0b11:
+                            //Lightest green
+                            ctx.fillStyle = `rgb(155, 188, 15)`;
+                            break;
+                        default:
+                            console.error("Invalid pixel value found");
+                    }
+                    ctx.fillRect(xPos, yPos, 1, 1);
+                }
+            }
+        }
+    }
+
     //Called in the main loop
     //cycles are the number of cycles from the last cpu execution
     ppu_step(cycles: number) {
@@ -96,8 +140,6 @@ class PPU {
                     if(this._currentLine === DISPLAY_LINES) {
                         //Vblank time!
                         this._mode = PPU_MODE_VBLANK;
-                        //Display the frame now!
-                        //TODO
                     } else {
                         this._mode = PPU_MODE_OAM;
                     }

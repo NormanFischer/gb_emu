@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useState } from 'react'
+import { ChangeEvent, useEffect, useRef, useState } from 'react'
 import './App.css'
 import Rom from './rom';
 import Emulator from './emulator';
@@ -9,6 +9,8 @@ function App() {
   const [emu, setEmu] = useState<Emulator | null>(null);
   const [currentPC, setPC] = useState<string>("");
   const [currentA, setA] = useState<string>("");
+
+  const canvas = useRef<HTMLCanvasElement | null>(null);
 
   function handleSelectFile(e: ChangeEvent<HTMLInputElement>) {
     if(e.target.files && e.target.files?.length > 0) {
@@ -34,7 +36,7 @@ function App() {
     const fr = new FileReader();
     fr.onload = function(ev) {
       const u8Arr = new Uint8Array(ev.target?.result as ArrayBuffer);
-      setEmu(new Emulator(u8Arr));
+      setEmu(new Emulator(u8Arr, (canvas.current as HTMLCanvasElement).getContext('2d') as CanvasRenderingContext2D));
     };
     fr.readAsArrayBuffer(currentRom as Blob);
   }
@@ -51,7 +53,7 @@ function App() {
           }}>Stop</button>
         </>
       }
-      <canvas id="gameScreen" width="160" height="144" style={{border: "1px solid #d3d3d3"}}></canvas>
+      <canvas id="vramMap" ref={canvas} width="128" height="192" style={{border: "1px solid #d3d3d3"}}></canvas>
       <input type="file" accept=".gb" onChange={handleSelectFile}/>
       {
         currentRom &&
