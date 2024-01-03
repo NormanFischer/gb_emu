@@ -37,7 +37,7 @@ class Emulator {
         //Update vram map
         this._cpu.mmu.ppu.put_vram_image(this.vramCanvasContext);
         if(this._cpu.isRunning) {
-            setTimeout(() => this.emu_step(), 16);
+            requestAnimationFrame(() => this.emu_step());
         }
     }
 

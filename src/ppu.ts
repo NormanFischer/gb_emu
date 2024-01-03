@@ -40,7 +40,7 @@ class PPU {
 
     io_read(addr: number): number {
         if(addr === 0xFF44) {
-            console.log("ly = " + this._currentLine);
+            //console.log("ly = " + this._currentLine);
             return this._currentLine;
         } else if (addr === 0xFF41) {
             return this._mode;
@@ -54,7 +54,7 @@ class PPU {
 
     io_write(addr: number, val: number) {
         if(addr === 0xFF44) {
-            console.log("ly = " + this._currentLine);
+            //console.log("ly = " + this._currentLine);
             this._currentLine = val;
         } else if(addr === 0xFF41) {
             //console.log("Lcd stat write val = " + val.toString(16));
@@ -83,7 +83,7 @@ class PPU {
                     //Silly
                     const xPos = tile % 16 * 8 - bit + 7;
                     const yPos = Math.floor(tile / 16) * 8 + tileWord;
-                    console.log("X = " + xPos + " Y = " + yPos);
+                    //console.log("X = " + xPos + " Y = " + yPos);
                     switch(pixelVal) {
                         case 0b00:
                             //Transparent
