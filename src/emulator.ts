@@ -67,6 +67,7 @@ class Emulator {
         //Frame rendering
         this._cpu.mmu.ppu.ppu_step(cycles);
         if(this._cpu.mmu.ppu.mode === 1) {
+            console.log("Interrupt requested");
             request_interrupt(this._cpu.mmu, 0);
         }
         return cycles;

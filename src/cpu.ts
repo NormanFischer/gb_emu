@@ -673,7 +673,9 @@ class CPUContext {
     }
 
     private cb_swap(val: number): number {
-        const res = ((val << 4) & 0xFF) | (val >> 4);
+        const hi = (val & 0b11110000) >> 4;
+        const lo = (val & 0b00001111) << 4;
+        const res = hi | lo;
         this.set_flags(res === 0 ? 1 : 0, 0, 0, 0);
         return res;
     }
@@ -1198,7 +1200,7 @@ class CPUContext {
     }
 
     //0x3C : INC_A
-    private INC_A() {
+    private INC_A(): number {
         const res = add8Bit(this._state.a, 1);
         this._state.a = res.res;
         this.set_flags(res.zero, 0, res.halfCarry, undefined);
@@ -1206,7 +1208,7 @@ class CPUContext {
     }
 
     //0x3D : DEC_A
-    private DEC_A() {
+    private DEC_A(): number {
         const res = subtract8Bit(this._state.a, 1);
         this._state.a = res.res;
         this.set_flags(res.zero, 1, res.halfCarry, undefined);
@@ -1214,48 +1216,48 @@ class CPUContext {
     }
 
     //0x3E : LD_A_D8
-    private LD_A_D8(args: Uint8Array) {
+    private LD_A_D8(args: Uint8Array): number {
         this._state.a = args[0];
         return 8;
     }
 
     //0x40 : LD_B_B
-    private LD_B_B() {
+    private LD_B_B(): number {
         return 4;
     }
 
     //0x41 : LD_B_C
-    private LD_B_C() {
+    private LD_B_C(): number {
         this._state.b = this._state.c;
         return 4;
     }
 
     //0x42 : LD_B_D
-    private LD_B_D() {
+    private LD_B_D(): number {
         this._state.b = this._state.d;
         return 4;
     }
 
     //0x43 : LD_B_E
-    private LD_B_E() {
+    private LD_B_E(): number {
         this._state.b = this._state.e;
         return 4;
     }
 
     //0x44 : LD_B_H
-    private LD_B_H() {
+    private LD_B_H(): number {
         this._state.b = this._state.h;
         return 4;
     }
 
     //0x45 : LD_B_L
-    private LD_B_L() {
+    private LD_B_L(): number {
         this._state.b = this._state.l;
         return 4;
     }
 
     //0x46 : LD_B_MHL
-    private LD_B_MHL() {
+    private LD_B_MHL(): number {
         const addr = get_hl(this._state);
         const val = this._mmu.read_byte(addr);
         this._state.b = val;
@@ -1263,48 +1265,48 @@ class CPUContext {
     }
 
     //0x47 : LD_B_A
-    private LD_B_A() {
+    private LD_B_A(): number {
         this._state.b = this._state.a;
         return 4;
     }
 
     //0x48 : LD_C_B
-    private LD_C_B() {
+    private LD_C_B(): number {
         this._state.c = this._state.b;
         return 4;
     }
 
     //0x49 : LD_C_C
-    private LD_C_C() {
+    private LD_C_C(): number {
         return 4;
     }
 
     //0x4A : LD_C_D
-    private LD_C_D() {
+    private LD_C_D(): number {
         this._state.c = this._state.d;
         return 4;
     }
 
     //0x4B : LD_C_E
-    private LD_C_E() {
+    private LD_C_E(): number {
         this._state.c = this._state.e;
         return 4;
     }
 
     //0x4C : LD_C_H
-    private LD_C_H() {
+    private LD_C_H(): number {
         this._state.c = this._state.h;
         return 4;
     }
 
     //0x4D : LD_C_L
-    private LD_C_L() {
+    private LD_C_L(): number {
         this._state.c = this._state.l;
         return 4;
     }
 
     //0x4E : LD_C_MHL
-    private LD_C_MHL() {
+    private LD_C_MHL(): number {
         const addr = get_hl(this._state);
         const val = this._mmu.read_byte(addr);
         this._state.c = val;
@@ -1312,7 +1314,7 @@ class CPUContext {
     }
 
     //0x4F : LD_C_A
-    private LD_C_A() {
+    private LD_C_A(): number {
         this._state.c = this._state.a;
         return 4;
     }
@@ -1506,98 +1508,98 @@ class CPUContext {
     }
 
     //0x70 : LD_MHL_B
-    private LD_MHL_B() {
+    private LD_MHL_B(): number {
         const addr = get_hl(this._state);
         this._mmu.write_byte(addr, this._state.b);
         return 8;
     }
 
     //0x71 : LD_MHL_C
-    private LD_MHL_C() {
+    private LD_MHL_C(): number {
         const addr = get_hl(this._state);
         this._mmu.write_byte(addr, this._state.c);
         return 8;
     }
 
     //0x72 : LD_MHL_D
-    private LD_MHL_D() {
+    private LD_MHL_D(): number {
         const addr = get_hl(this._state);
         this._mmu.write_byte(addr, this._state.d);
         return 8;
     }
 
     //0x73 : LD_MHL_E
-    private LD_MHL_E() {
+    private LD_MHL_E(): number {
         const addr = get_hl(this._state);
         this._mmu.write_byte(addr, this._state.e);
         return 8;
     }
 
     //0x74 : LD_MHL_H
-    private LD_MHL_H() {
+    private LD_MHL_H(): number {
         const addr = get_hl(this._state);
         this._mmu.write_byte(addr, this._state.h);
         return 8;
     }
 
     //0x75 : LD_MHL_L
-    private LD_MHL_L() {
+    private LD_MHL_L(): number {
         const addr = get_hl(this._state);
         this._mmu.write_byte(addr, this._state.l);
         return 8;
     }
 
     //0x76 : HALT
-    private HALT() {
+    private HALT(): number {
         console.error("HALT, need to implement");
         return 4;
     }
 
     //0x77 : LD_MHL_A
-    private LD_MHL_A() {
+    private LD_MHL_A(): number {
         const addr = get_hl(this._state);
         this._mmu.write_byte(addr, this._state.a);
         return 8;
     }
 
     //0x78 : LD_A_B
-    private LD_A_B() {
+    private LD_A_B(): number {
         this._state.a = this._state.b;
         return 4;
     }
 
     //0x79 : LD_A_C
-    private LD_A_C() {
+    private LD_A_C(): number {
         this._state.a = this._state.c;
         return 4;
     }
 
     //0x7A : LD_A_D
-    private LD_A_D() {
+    private LD_A_D(): number {
         this._state.a = this._state.d;
         return 4;
     }
 
     //0x7B : LD_A_E
-    private LD_A_E() {
+    private LD_A_E(): number {
         this._state.a = this._state.e;
         return 4;
     }
 
     //0x7C : LD_A_H
-    private LD_A_H() {
+    private LD_A_H(): number {
         this._state.a = this._state.h;
         return 4;
     }
 
     //0x7D LD_A_L
-    private LD_A_L() {
+    private LD_A_L(): number {
         this._state.a = this._state.l;
         return 4;
     }
 
     //0x7E : LD_A_MHL
-    private LD_A_MHL() {
+    private LD_A_MHL(): number {
         const addr = get_hl(this._state);
         const val = this._mmu.read_byte(addr);
         this._state.a = val;
@@ -1605,13 +1607,13 @@ class CPUContext {
     }
 
     //0x7F : LD_A_A
-    private LD_A_A() {
+    private LD_A_A(): number {
         this._state.a = this._state.a;
         return 4;
     }
 
     //0x80 : ADD_A_B
-    private ADD_A_B() {
+    private ADD_A_B(): number {
         const res = add8Bit(this._state.a, this._state.b);
         this._state.a = res.res;
         this.set_flags(res.zero, 0, res.halfCarry, res.carry);
@@ -1619,7 +1621,7 @@ class CPUContext {
     }
 
     //0x81 : ADD_A_C
-    private ADD_A_C() {
+    private ADD_A_C(): number {
         const res = add8Bit(this._state.a, this._state.c);
         this._state.a = res.res;
         this.set_flags(res.zero, 0, res.halfCarry, res.carry);
@@ -1627,7 +1629,7 @@ class CPUContext {
     }
 
     //0x82 : ADD_A_D
-    private ADD_A_D() {
+    private ADD_A_D(): number {
         const res = add8Bit(this._state.a, this._state.d);
         this._state.a = res.res;
         this.set_flags(res.zero, 0, res.halfCarry, res.carry);
@@ -1635,7 +1637,7 @@ class CPUContext {
     }
 
     //0x83 : ADD_A_E
-    private ADD_A_E() {
+    private ADD_A_E(): number {
         const res = add8Bit(this._state.a, this._state.e);
         this._state.a = res.res;
         this.set_flags(res.zero, 0, res.halfCarry, res.carry);
@@ -1643,7 +1645,7 @@ class CPUContext {
     }
 
     //0x84 : ADD_A_H
-    private ADD_A_H() {
+    private ADD_A_H(): number {
         const res = add8Bit(this._state.a, this._state.h);
         this._state.a = res.res;
         this.set_flags(res.zero, 0, res.halfCarry, res.carry);
@@ -1651,7 +1653,7 @@ class CPUContext {
     }
 
     //0x85 : ADD_A_L
-    private ADD_A_L() {
+    private ADD_A_L(): number {
         const res = add8Bit(this._state.a, this._state.l);
         this._state.a = res.res;
         this.set_flags(res.zero, 0, res.halfCarry, res.carry);
@@ -1960,6 +1962,7 @@ class CPUContext {
     private CB(args: Uint8Array) {
         this.cb[args[0]]();
         console.error("TODO: Implement mcycles 0xCB" + args[0].toString(16));
+        return 0;
     }
 
     //0xCD : CALL_A16
@@ -2015,6 +2018,7 @@ class CPUContext {
 
     //0xD9 : RETI
     private RETI(): number {
+        console.log("RETI @" + this._pc.toString(16));
         this.ret_step();
         this.interrupt_enable_pending = true;
         return 16;
@@ -2090,6 +2094,7 @@ class CPUContext {
         const addr = (0xFF << 8) | args[0];
         const val = this._mmu.read_byte(addr);
         this._state.a = val;
+        //console.log("A is now " + this._state.a);
         return 12;
     }
 
@@ -2146,7 +2151,7 @@ class CPUContext {
         return 4;
     }
 
-    //0xFE : CP_d8
+    //0xFE : CP_D8
     private CP_D8(args: Uint8Array): number {
         this.cp_val(args[0]);
         return 8;

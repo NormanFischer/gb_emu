@@ -50,7 +50,6 @@ class PPU {
     }
 
     oam_write(addr: number, val: number) {
-        console.log("Writing " + val + " to oam");
         const relAddr = addr - 0xFE00;
         this._oam[relAddr] = val;
     }
@@ -136,7 +135,6 @@ class PPU {
     //cycles are the number of cycles from the last cpu execution
     ppu_step(cycles: number) {
         this._modeTime += cycles;
-        //console.log("Mode time = " + this._modeTime);
 
         //What mode are we currently in?
         switch(this._mode) {
@@ -175,6 +173,7 @@ class PPU {
                     this._currentLine++;
 
                     if(this._currentLine > DISPLAY_LINES + 10) {
+                        console.log("Vblank done");
                         this._mode = PPU_MODE_OAM;
                         this._currentLine = 0;
                     }

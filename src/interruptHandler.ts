@@ -15,36 +15,37 @@ const ADDR_SERIAL = 0x58;
 const ADDR_JOYPAD = 0x60;
 
 function push_interrupt(emu: Emulator, addr: number) {
-    emu.cpu.sp--;
-    emu.cpu.mmu.write_byte(emu.cpu.sp--, (emu.cpu.pc >> 8) & 0xFF);
-    emu.cpu.mmu.write_byte(emu.cpu.sp, emu.cpu.pc & 0xFF);
+    emu.cpu.push_16bit(emu.cpu.pc);
     emu.cpu.pc = addr;
 }
 
 function interrupt_handler(emu: Emulator) {
-    emu.cpu.IME = false;
     const IE = emu.cpu.mmu.read_byte(0xFFFF);
     const IF = emu.cpu.mmu.read_byte(0xFF0F);
-
     //Handle by priority (vblank may be redundant but it looks nice)
     if((IE & (1 << I_VBLANK)) && (IF & (1 << I_VBLANK))) {
+        emu.cpu.IME = false;
         emu.cpu.mmu.write_byte(0xFF0F, IF & ~(1 << I_VBLANK));
-        console.log("Servicing vblank interrupt: " + emu.cpu.mmu.read_byte(0xFF0F).toString(2));
+        //console.log("Servicing vblank interrupt: " + emu.cpu.mmu.read_byte(0xFF0F).toString(2));
         push_interrupt(emu, ADDR_VBLANK);
         return;
     } else if((IE & (1 << I_LCD)) && (IF & (1 << I_LCD))) {
+        emu.cpu.IME = false;
         emu.cpu.mmu.write_byte(0xFF0F, IF & ~(1 << I_LCD));
         push_interrupt(emu, ADDR_STAT);
         return;
     } else if((IE & (1 << I_TIMER)) && (IF & (1 << I_TIMER))) {
+        emu.cpu.IME = false;
         emu.cpu.mmu.write_byte(0xFF0F, IF & ~(1 << I_TIMER));
         push_interrupt(emu, ADDR_TIMER);
         return;
     } else if((IE & (1 << I_SERIAL)) && (IF & (1 << I_SERIAL))) {
+        emu.cpu.IME = false;
         emu.cpu.mmu.write_byte(0xFF0F, IF & ~(1 << I_SERIAL));
         push_interrupt(emu, ADDR_SERIAL);
         return;
     } else if((IE & (1 << I_JOYPAD)) && (IF & (1 << I_JOYPAD))) {
+        emu.cpu.IME = false;
         emu.cpu.mmu.write_byte(0xFF0F, IF & ~(1 << I_JOYPAD));
         push_interrupt(emu, ADDR_JOYPAD);
         return;

@@ -72,9 +72,8 @@ class MMU {
             console.log("IO read for unimplemented addr @" + addr.toString(16));
             return 0xff;
         } else if(addr === 0xFFFF) {
-            console.log("Ie read");
+            //console.log("Ie read");
             return this.ie;
-            
         } else {
             //hram
             const val = this.hram.read(addr);
@@ -101,6 +100,9 @@ class MMU {
             console.log("Echo ram reserved, write denied...");
         } else if (addr < 0xFEA0) {
             //oam read todo: dma transfer stuff
+            if(val != 0) {
+                console.log("Writing " + val.toString(16) + " to oam");
+            }
             this.ppu.oam_write(addr, val);
         } else if (addr < 0xFF00) {
             console.log("Reserved unusable write denied...");

@@ -111,7 +111,14 @@ test("CALL/RET tests", () => {
 test("CB tests", () => {
     const cpu = new CPUContext(new Uint8Array());
     //SWAP
-    cpu.state.a = 0x1234;
+    cpu.state.a = 0x34;
     cpu.execute_instruction(0xCB, new Uint8Array([0x37]));
-    expect(cpu.state.a).toBe(0x3412);
+    expect(cpu.state.a).toBe(0x43);
+
+    //RES 0
+    cpu.state.a = 0b11111111;
+    cpu.execute_instruction(0xCB, new Uint8Array([0x87]));
+    expect(cpu.state.a).toBe(0b11111110);
+    cpu.execute_instruction(0xCB, new Uint8Array([0x87]));
+    expect(cpu.state.a).toBe(0b11111110);
 });
