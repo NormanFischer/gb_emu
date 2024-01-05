@@ -2,7 +2,7 @@ class HRAM {
     private _hram: Uint8Array;
 
     constructor() {
-        this._hram = new Uint8Array(0x7E);
+        this._hram = new Uint8Array(0x7E + 1);
     }
 
     read(addr: number): number {

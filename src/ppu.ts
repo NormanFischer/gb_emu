@@ -1,3 +1,5 @@
+import { request_interrupt } from "./interruptHandler";
+
 const PPU_OAM_ACCESS_TIME = 80;
 const PPU_VRAM_ACCESS_TIME = 172;
 const PPU_HBLANK_TIME = 204;
@@ -17,15 +19,19 @@ class PPU {
     private _scy: number;
     private _scx: number;
     private _vram: Uint8Array;
+    private _oam: Uint8Array;
+    private _lcdc: number;
     
     constructor() {
         //0x2000 bytes of VRAM
         this._vram = new Uint8Array(0x2000);
+        this._oam = new Uint8Array(0xA0);
         this._mode = 0;
         this._modeTime = 0;
         this._currentLine = 0;
         this._scy = 0;
         this._scx = 0;
+        this._lcdc = 0;
     }
 
     vram_read(addr: number) {
@@ -38,9 +44,19 @@ class PPU {
         this._vram[relAddr] = val;
     }
 
+    oam_read(addr: number) {
+        const relAddr = addr - 0xFE00;
+        return this._oam[relAddr];
+    }
+
+    oam_write(addr: number, val: number) {
+        console.log("Writing " + val + " to oam");
+        const relAddr = addr - 0xFE00;
+        this._oam[relAddr] = val;
+    }
+
     io_read(addr: number): number {
         if(addr === 0xFF44) {
-            //console.log("ly = " + this._currentLine);
             return this._currentLine;
         } else if (addr === 0xFF41) {
             return this._mode;
@@ -48,22 +64,28 @@ class PPU {
             return this._scy;
         } else if (addr === 0xFF43) {
             return this._scx;
+        } else if (addr === 0xFF40) {
+            return this._lcdc;
         }
         return 0;
     }
 
     io_write(addr: number, val: number) {
         if(addr === 0xFF44) {
-            //console.log("ly = " + this._currentLine);
             this._currentLine = val;
         } else if(addr === 0xFF41) {
-            //console.log("Lcd stat write val = " + val.toString(16));
-            this._mode = val;
+            this._mode = val & 0b11;
         } else if(addr === 0xFF42) {
             this._scy = val;
         } else if(addr === 0xFF43) {
             this._scx = val;
+        } else if(addr === 0xFF40) {
+            this._lcdc = val;
         }
+    }
+
+    public get mode() {
+        return this._mode;
     }
 
 
@@ -114,6 +136,7 @@ class PPU {
     //cycles are the number of cycles from the last cpu execution
     ppu_step(cycles: number) {
         this._modeTime += cycles;
+        //console.log("Mode time = " + this._modeTime);
 
         //What mode are we currently in?
         switch(this._mode) {
@@ -157,6 +180,9 @@ class PPU {
                     }
                 }
                 break;
+            default:
+                console.error("Invalid ppu mode: " + this._mode);
+                return;
         }
     }
 };

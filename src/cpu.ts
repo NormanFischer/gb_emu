@@ -13,7 +13,8 @@ class CPUContext {
     private _sp: number;
     private _pc: number;
     private _isRunning: boolean;
-    private _IME: number;
+    private _interrupt_enable_pending: boolean;
+    private _IME: boolean;
 
     //Lookup table for all instructions
     instructions: { [key: number]: Instruction } = {
@@ -21,6 +22,7 @@ class CPUContext {
         0x01: {op: this.LD_BC_D16.bind(this),len: 3},
         0x02: {op: this.LD_MBC_A.bind(this), len: 1},
         0x03: {op: this.INC_BC.bind(this),   len: 1},
+        0x04: {op: this.INC_B.bind(this),    len: 1},
         0x05: {op: this.DEC_B.bind(this),    len: 1},
         0x06: {op: this.LD_B_D8.bind(this),  len: 2},
         0x09: {op: this.ADD_HL_BC.bind(this),len: 1},
@@ -33,6 +35,7 @@ class CPUContext {
         0x11: {op: this.LD_DE_D16.bind(this),len: 3},
         0x12: {op: this.LD_MDE_A.bind(this), len: 1},
         0x13: {op: this.INC_DE.bind(this),   len: 1},
+        0x14: {op: this.INC_D.bind(this),    len: 1},
         0x15: {op: this.DEC_D.bind(this),    len: 1},
         0x16: {op: this.LD_D_D8.bind(this),  len: 2},
         0x18: {op: this.JR_R8.bind(this),    len: 2},
@@ -42,11 +45,13 @@ class CPUContext {
         0x1C: {op: this.INC_E.bind(this),    len: 1},
         0x1D: {op: this.DEC_E.bind(this),    len: 1},
         0x1E: {op: this.LD_E_D8.bind(this),  len: 2},
+        0x1F: {op: this.RRA.bind(this),      len: 1},
         
         0x20: {op: this.JR_NZ_R8.bind(this), len: 2},
         0x21: {op: this.LD_HL_D16.bind(this),len: 3},
         0x22: {op: this.LD_MHLI_A.bind(this),len: 1},
         0x23: {op: this.INC_HL.bind(this),   len: 1},
+        0x24: {op: this.INC_H.bind(this),    len: 1},
         0x25: {op: this.DEC_H.bind(this),    len: 1},
         0x26: {op: this.LD_H_D8.bind(this),  len: 2},
         0x28: {op: this.JR_Z_R8.bind(this),  len: 2},
@@ -61,6 +66,7 @@ class CPUContext {
         0x31: {op: this.LD_SP_D16.bind(this),len: 3},
         0x32: {op: this.LD_MHLD_A.bind(this),len: 1},
         0x33: {op: this.INC_SP.bind(this),   len: 1},
+        0x34: {op: this.INC_MHL.bind(this),  len: 1},
         0x35: {op: this.DEC_MHL.bind(this),  len: 1},
         0x36: {op: this.LD_MHL_D8.bind(this),len: 2},
         0x37: {op: this.SCF.bind(this),      len: 1},
@@ -185,9 +191,11 @@ class CPUContext {
         0xC0: {op: this.RET_NZ.bind(this),   len: 1},
         0xC1: {op: this.POP_BC.bind(this),   len: 1},
         0xC3: {op: this.JP_A16.bind(this),   len: 3},
+        0xC4: {op: this.CALL_NZ_A16.bind(this), len: 3},
         0xC5: {op: this.PUSH_BC.bind(this),  len: 1},
         0xC6: {op: this.ADD_A_D8.bind(this), len: 2},
         0xC7: {op: this.RST_00H.bind(this),  len: 1},
+        0xC8: {op: this.RET_Z.bind(this),    len: 1},
         0xC9: {op: this.RET.bind(this),      len: 1},
         0xCA: {op: this.JP_Z_A16.bind(this), len: 3},
         0xCB: {op: this.CB.bind(this),       len: 2},
@@ -199,6 +207,7 @@ class CPUContext {
         0xD5: {op: this.PUSH_DE.bind(this),  len: 1},
         0xD6: {op: this.SUB_D8.bind(this),   len: 2},
         0xD7: {op: this.RST_10H.bind(this),  len: 1},
+        0xD9: {op: this.RETI.bind(this),     len: 1},
         0xDF: {op: this.RST_18H.bind(this),  len: 1},
 
         0xE0: {op: this.LDH_MA8_A.bind(this),len: 2},
@@ -553,7 +562,8 @@ class CPUContext {
         this._sp = 0;
         this._pc = 0;
         this._isRunning = false;
-        this._IME = 0;
+        this._IME = false;
+        this._interrupt_enable_pending = false;
         this._mmu = new MMU(romData);
     }
 
@@ -580,7 +590,8 @@ class CPUContext {
     //Returns the number of cycles an operation takes to complete
     execute_instruction(opcode: number, args: Uint8Array): number {
         if(args.length !== this.instructions[opcode].len - 1) {
-            console.log("Invalid argument size for opcode " + opcode);
+            console.log("Invalid argument size of " + args.length + " for opcode " + opcode.toString(16) + " (should be " + (this.instructions[opcode].len - 1)  + ")");
+            console.log("@ pc = " + this._pc.toString(16));
             return -1;
         }
         const op_to_exec = this.instructions[opcode].op;
@@ -694,31 +705,14 @@ class CPUContext {
 
     //operation logic here
     private ret_step() {
-        const lsb = this._mmu.read_byte(this._sp);
-        this._sp++;
-        const msb = this._mmu.read_byte(this._sp);
-        this._sp++;
-        this._pc = (msb << 8) | lsb;
+        const newPc = this.pop_16bit();
+        this._pc = newPc;
+        console.log("Returning to " + this._pc.toString(16) + " sp = " + this._sp.toString(16));
     }
 
     private restart_step(addr: number) {
-        this._sp--;
-        this._mmu.write_byte(this._sp--, this._pc >> 8);
-        this._mmu.write_byte(this._sp, this._pc & 0xFF);
+        this.push_16bit(this._pc);
         this._pc = addr;
-    }
-
-    private nz(): boolean {
-        const nz = (this.get_zero() === 0);
-        return nz;
-    }
-
-    private ld_b(val: number){
-        this._state.b = val;
-    }
-
-    private ld_c(val: number) {
-        this._state.c = val;
     }
 
     private inc_hl() {
@@ -796,30 +790,59 @@ class CPUContext {
         this.set_flags(res.zero, 1, res.halfCarry, res.carry);
     }
 
+    push_8bit(val: number) {
+        this._mmu.write_byte(--this._sp, val);
+    }
+
+    push_16bit(val: number) {
+        //Push msb
+        this.push_8bit((val >> 8) & 0xFF);
+        //Push lsb
+        this.push_8bit(val & 0xFF);
+    }
+
+    pop_8bit(): number {
+        const val = this._mmu.read_byte(this._sp++);
+        return val;
+    }
+
+    pop_16bit(): number {
+        const lo = this.pop_8bit();
+        const hi = this.pop_8bit();
+        return (hi << 8) | lo;
+    }
+
     //0x00 : NOP
-    private NOP() {
-        //console.log("nop");
+    private NOP(): number {
         return 4;
     }
 
     //0x01 : LD_BC_D16
-    private LD_BC_D16(args: Uint8Array) {
+    private LD_BC_D16(args: Uint8Array): number {
         this._state.b = args[1];
         this._state.c = args[0];
         return 12;
     }
 
     //0x02 : LD_MBC_A
-    private LD_MBC_A() {
+    private LD_MBC_A(): number {
         const addr = get_bc(this._state);
         this._mmu.write_byte(addr, this._state.a);
         return 8;
     }
 
     //0x03 : INC_BC
-    private INC_BC() {
+    private INC_BC(): number {
         this.inc_bc();
         return 8;
+    }
+
+    //0x04 : INC_B
+    private INC_B(): number {
+        const res = add8Bit(this._state.b, 1);
+        this._state.b = res.res;
+        this.set_flags(res.zero, 0, res.halfCarry, undefined);
+        return 4;
     }
 
     //0x05 : DEC_B
@@ -900,6 +923,14 @@ class CPUContext {
         return 8;
     }
 
+    //0x14 : INC_D
+    private INC_D(): number {
+        const res = add8Bit(this._state.d, 1);
+        this._state.d = res.res;
+        this.set_flags(res.zero, 0, res.halfCarry, undefined);
+        return 4;
+    }
+
     //0x15 : DEC_D
     private DEC_D(): number {
         const res = subtract8Bit(this._state.d, 1);
@@ -951,7 +982,7 @@ class CPUContext {
         return 4;
     }
 
-    //0x1D: DEC_E
+    //0x1D : DEC_E
     private DEC_E(): number {
         const res = subtract8Bit(this._state.e, 1);
         this._state.e = res.res;
@@ -959,10 +990,17 @@ class CPUContext {
         return 4;
     }
 
-    //0x1E: LD_E_D8
+    //0x1E : LD_E_D8
     private LD_E_D8(args: Uint8Array): number {
         this._state.e = args[0];
         return 8;
+    }
+
+    //0x1F : RRA
+    private RRA(): number {
+        let res = this.cb_rr(this._state.a);
+        this._state.a = res;
+        return 4;
     }
 
     //0x20 : JR_NZ_R8
@@ -995,6 +1033,14 @@ class CPUContext {
     private INC_HL(): number {
         this.inc_hl();
         return 8;
+    }
+
+    //0x24 : INC_H
+    private INC_H(): number {
+        const res = add8Bit(this._state.h, 1);
+        this._state.h = res.res;
+        this.set_flags(res.zero, 0, res.halfCarry, undefined);
+        return 4;
     }
 
     //0x25 : DEC_H
@@ -1097,6 +1143,15 @@ class CPUContext {
         return 8;
     }
 
+    //0x34 : INC_MHL
+    private INC_MHL(): number {
+        const addr = get_hl(this._state);
+        const res = add8Bit(this._mmu.read_byte(addr), 1);
+        this._mmu.write_byte(addr, res.res);
+        this.set_flags(res.zero, 0, res.halfCarry, undefined);
+        return 4;
+    }
+
     //0x35 : DEC_MHL
     private DEC_MHL(): number {
         const hl = get_hl(this._state);
@@ -1166,37 +1221,36 @@ class CPUContext {
 
     //0x40 : LD_B_B
     private LD_B_B() {
-        this.ld_b(this._state.b);
         return 4;
     }
 
     //0x41 : LD_B_C
     private LD_B_C() {
-        this.ld_b(this._state.c);
+        this._state.b = this._state.c;
         return 4;
     }
 
     //0x42 : LD_B_D
     private LD_B_D() {
-        this.ld_b(this._state.d);
+        this._state.b = this._state.d;
         return 4;
     }
 
     //0x43 : LD_B_E
     private LD_B_E() {
-        this.ld_b(this._state.e);
+        this._state.b = this._state.e;
         return 4;
     }
 
     //0x44 : LD_B_H
     private LD_B_H() {
-        this.ld_b(this._state.h);
+        this._state.b = this._state.h;
         return 4;
     }
 
     //0x45 : LD_B_L
     private LD_B_L() {
-        this.ld_b(this._state.l);
+        this._state.b = this._state.l;
         return 4;
     }
 
@@ -1204,49 +1258,48 @@ class CPUContext {
     private LD_B_MHL() {
         const addr = get_hl(this._state);
         const val = this._mmu.read_byte(addr);
-        this.ld_b(val);
+        this._state.b = val;
         return 8;
     }
 
     //0x47 : LD_B_A
     private LD_B_A() {
-        this.ld_b(this._state.a);
+        this._state.b = this._state.a;
         return 4;
     }
 
     //0x48 : LD_C_B
     private LD_C_B() {
-        this.ld_c(this._state.b);
+        this._state.c = this._state.b;
         return 4;
     }
 
     //0x49 : LD_C_C
     private LD_C_C() {
-        this.ld_c(this._state.c);
         return 4;
     }
 
     //0x4A : LD_C_D
     private LD_C_D() {
-        this.ld_c(this._state.d);
+        this._state.c = this._state.d;
         return 4;
     }
 
     //0x4B : LD_C_E
     private LD_C_E() {
-        this.ld_c(this._state.e);
+        this._state.c = this._state.e;
         return 4;
     }
 
     //0x4C : LD_C_H
     private LD_C_H() {
-        this.ld_c(this._state.h);
+        this._state.c = this._state.h;
         return 4;
     }
 
     //0x4D : LD_C_L
     private LD_C_L() {
-        this.ld_c(this._state.l);
+        this._state.c = this._state.l;
         return 4;
     }
 
@@ -1254,13 +1307,13 @@ class CPUContext {
     private LD_C_MHL() {
         const addr = get_hl(this._state);
         const val = this._mmu.read_byte(addr);
-        this.ld_c(val);
+        this._state.c = val;
         return 8;
     }
 
     //0x4F : LD_C_A
     private LD_C_A() {
-        this.ld_c(this._state.a);
+        this._state.c = this._state.a;
         return 4;
     }
 
@@ -1834,25 +1887,33 @@ class CPUContext {
 
     //0xC1 : POP_BC
     private POP_BC() {
-        const lsb = this._mmu.read_byte(this._sp++);
-        const msb = this._mmu.read_byte(this._sp++);
-        set_bc(this._state, (msb << 4) | lsb);
+        set_bc(this._state, this.pop_16bit());
         return 12;
     }
 
     //0xC3 : JP_A16
     private JP_A16(args: Uint8Array) {
         const addr = leTo16Bit(args[0], args[1]);
-        console.log("Jumping to: " + addr.toString(16));
+        console.log("JP_A16: Jumping to: " + addr.toString(16));
         this._pc = addr;
         return 16;
     }
 
+    //0xC4 : CALL_NZ_A16
+    private CALL_NZ_A16(args: Uint8Array) {
+        const msb = args[0];
+        const lsb = args[1];
+        if(!this.get_zero()) {
+            this.push_16bit(this._pc);
+            this._pc = (msb << 8) | lsb;
+            return 24;
+        }
+        return 12;
+    }
+
     //0xC5 : PUSH_BC
     private PUSH_BC() {
-        this._sp--;
-        this._mmu.write_byte(this._sp--, this._state.b);
-        this._mmu.write_byte(this._sp, this._state.c);
+        this.push_16bit(get_bc(this._state));
         return 16;
     }
 
@@ -1870,6 +1931,15 @@ class CPUContext {
         return 16;
     }
 
+    //0xC8 : RET_Z
+    private RET_Z() {
+        if(this.get_zero()) {
+            this.ret_step();
+            return 20;
+        }
+        return 8;
+    }
+
     //0xC9 : RET
     private RET() {
         this.ret_step();
@@ -1880,6 +1950,7 @@ class CPUContext {
     private JP_Z_A16(args: Uint8Array) {
         if(this.get_zero()) {
             this._pc = leTo16Bit(args[0], args[1]);
+            console.log("JP_Z: Jumping to " + this._pc.toString(16));
             return 16;
         }
         return 12;
@@ -1888,19 +1959,16 @@ class CPUContext {
     //0xCB : CB
     private CB(args: Uint8Array) {
         this.cb[args[0]]();
-        console.error("TODO: Implement mcycles");
+        console.error("TODO: Implement mcycles 0xCB" + args[0].toString(16));
     }
 
     //0xCD : CALL_A16
     private CALL_A16(args: Uint8Array) {
-        const addr = leTo16Bit(args[0], args[1]);
-        this._sp--;
-        //Write msb of current pc to stack
-        this._mmu.write_byte(this._sp, this._pc >> 8);
-        this._sp--;
-        //also write lsb to stack
-        this._mmu.write_byte(this._sp, this._pc & 0xFF);
-        this._pc = addr;
+        const msb = args[1];
+        const lsb = args[0];
+        this.push_16bit(this._pc);
+        this._pc = (msb << 8) | lsb;
+        console.log("PC is now " + this._pc.toString(16));
         return 24;
     }
 
@@ -1921,17 +1989,13 @@ class CPUContext {
 
     //0xD1 : POP_DE
     private POP_DE(): number {
-        const lsb = this._mmu.read_byte(this._sp++);
-        const msb = this._mmu.read_byte(this._sp++);
-        set_de(this._state, (msb << 4) | lsb);
+        set_de(this._state, this.pop_16bit());
         return 12;
     }
 
     //0xD5 : PUSH_DE
     private PUSH_DE(): number {
-        this._sp--;
-        this._mmu.write_byte(this._sp--, this._state.d);
-        this._mmu.write_byte(this._sp, this._state.e);
+        this.push_16bit(get_de(this._state));
         return 16;
     }
 
@@ -1946,6 +2010,13 @@ class CPUContext {
     //0xD7 : RST_10H
     private RST_10H(): number {
         this.restart_step(0x0010);
+        return 16;
+    }
+
+    //0xD9 : RETI
+    private RETI(): number {
+        this.ret_step();
+        this.interrupt_enable_pending = true;
         return 16;
     }
 
@@ -1966,9 +2037,7 @@ class CPUContext {
 
     //0xE1 : POP_HL
     private POP_HL(): number {
-        const lsb = this._mmu.read_byte(this._sp++);
-        const msb = this._mmu.read_byte(this._sp++);
-        set_hl(this._state, (msb << 4) | lsb);
+        set_hl(this._state, this.pop_16bit());
         return 12;
     }
 
@@ -1981,9 +2050,7 @@ class CPUContext {
 
     //0xE5 : PUSH_HL
     private PUSH_HL(): number {
-        this._sp--;
-        this._mmu.write_byte(this._sp--, this._state.h);
-        this._mmu.write_byte(this._sp, this._state.l);
+        this.push_16bit(get_hl(this._state));
         return 16;
     }
 
@@ -2001,7 +2068,7 @@ class CPUContext {
 
     //0xE9 : JP_MHL
     private JP_MHL(): number {
-        this._pc = this._mmu.read_byte(get_hl(this._state));
+        this._pc = get_hl(this._state);
         return 4;
     }
 
@@ -2028,9 +2095,7 @@ class CPUContext {
 
     //0xF1 : POP_AF
     private POP_AF(): number {
-        const lsb = this._mmu.read_byte(this._sp++);
-        const msb = this._mmu.read_byte(this._sp++);
-        set_af(this._state, (msb << 4) | lsb);
+        set_af(this._state, this.pop_16bit());
         return 12;
     }
 
@@ -2044,15 +2109,13 @@ class CPUContext {
     //0xF3 : DI
     private DI(): number {
         console.log("Disable interrupts");
-        this._IME = 0;
+        this._IME = false;
         return 4;
     }
 
     //0xF5 : PUSH_AF
     private PUSH_AF(): number {
-        this._sp--;
-        this._mmu.write_byte(this._sp--, this._state.a);
-        this._mmu.write_byte(this._sp, this._state.f);
+        this.push_16bit(get_af(this._state));
         return 16;
     }
 
@@ -2078,7 +2141,8 @@ class CPUContext {
 
     //0xFB : EI
     private EI(): number {
-        console.log("Enable interrupts");
+        //console.log("Enabling interrupts");
+        this._interrupt_enable_pending = true;
         return 4;
     }
 
@@ -2102,6 +2166,14 @@ class CPUContext {
         return this._state;
     }
 
+    public get sp() {
+        return this._sp;
+    }
+
+    public set sp(sp: number) {
+        this._sp = sp;
+    }
+
     public set pc(pc: number) {
         this._pc = pc;
     }
@@ -2118,6 +2190,22 @@ class CPUContext {
         this._isRunning = isRunning;
     }
 
+    public get IME() {
+        return this._IME;
+    }
+
+    public set IME(val: boolean) {
+        this._IME = val;
+    }
+
+    public get interrupt_enable_pending() {
+        return this._interrupt_enable_pending;
+    }
+
+    public set interrupt_enable_pending(val: boolean) {
+        this._interrupt_enable_pending = val;
+    }
+
     private get_zero(): bit {
         const zeroMask = 1 << FLAGS_ZERO;
         return (this._state.f & zeroMask) !== 0 ? 1 : 0;
@@ -2128,7 +2216,7 @@ class CPUContext {
         return (this._state.f & carryMask) !== 0 ? 1 : 0;
     }
 
-    private set_flags(z?: bit, n?: bit, h?: bit, c?: bit) {
+    set_flags(z?: bit, n?: bit, h?: bit, c?: bit) {
         //console.log(`Set flags z=${z} n=${n} h=${h} c=${c}`);
         if(z !== undefined) {
             this.set_flag(z, FLAGS_ZERO);
@@ -2269,4 +2357,4 @@ function subtract16bit(a: number, b: number): {res: number, carry: bit, halfCarr
     return {res, carry, halfCarry};
 }
 
-export {CPUContext, type CPUState};
+export {CPUContext, type CPUState, set_hl};

@@ -1,4 +1,5 @@
 import  { CPUContext, CPUState } from "./cpu";
+import { interrupt_handler, request_interrupt } from "./interruptHandler";
 
 const CYCLES_PER_FRAME = 69905;
 
@@ -52,8 +53,22 @@ class Emulator {
         const args = this.fetch_args(opcode);
         const cycles = this._cpu.execute_instruction(opcode, args);
 
+        if(this._cpu.IME) {
+            //Hanlde interrupts
+            interrupt_handler(this);
+        }
+
+        if(this._cpu.interrupt_enable_pending) {
+            //Accounting for one op delay
+            this._cpu.IME = true;
+            this._cpu.interrupt_enable_pending = false;
+        }
+
         //Frame rendering
         this._cpu.mmu.ppu.ppu_step(cycles);
+        if(this._cpu.mmu.ppu.mode === 1) {
+            request_interrupt(this._cpu.mmu, 0);
+        }
         return cycles;
     }
 
@@ -71,15 +86,19 @@ class Emulator {
     private fetch_args(opcode: number): Uint8Array {
         // Subtract one because we already read opcode
         const argLen = this._cpu.get_instruction_len(opcode) - 1;
-        if(argLen < 0) {
-            throw new Error(`Invalid opcode ${opcode.toString(16)} found while fetching args`);
-        }
         if(argLen === 0) {
             return new Uint8Array([]);
+        } else if (argLen === 1) {
+            return new Uint8Array([this._cpu.mmu.read_byte(this._cpu.pc++)]);
+        } else if (argLen === 2) {
+            return new Uint8Array([this._cpu.mmu.read_byte(this._cpu.pc++), this._cpu.mmu.read_byte(this._cpu.pc++)]);
+        } else {
+            console.error("Invalid argLength found");
+            return new Uint8Array;
         }
-        const args = this._cpu.mmu.read(this._cpu.pc, argLen);
-        this._cpu.pc += argLen;
-        return args;
+        // const args = this._cpu.mmu.read(this._cpu.pc, argLen);
+        // this._cpu.pc += argLen;
+        // return args;
     }
 
     public get cpu(): CPUContext {
