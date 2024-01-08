@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { CPUContext, set_hl } from '../src/cpu';
+import { CPUContext, set_hl, subtract8Bit } from '../src/cpu';
 
 test("JP tests", () => {
     const cpu = new CPUContext(new Uint8Array());
@@ -122,3 +122,45 @@ test("CB tests", () => {
     cpu.execute_instruction(0xCB, new Uint8Array([0x87]));
     expect(cpu.state.a).toBe(0b11111110);
 });
+
+test("POP AF", () => {
+    const cpu = new CPUContext(new Uint8Array);
+    cpu.sp = 0xFFFE;
+
+    //ld bc, $1200
+    cpu.execute_instruction(0x01 ,new Uint8Array([0x00, 0x12]));
+    expect(cpu.state.b).toBe(0x12);
+    expect(cpu.state.c).toBe(0x00);
+
+    //push bc
+    cpu.execute_instruction(0xC5, new Uint8Array);
+    expect(cpu.sp).toBe(0xFFFE - 2);
+
+    //pop af
+    cpu.execute_instruction(0xF1, new Uint8Array);
+    expect(cpu.state.a).toBe(0x12);
+    expect(cpu.state.f).toBe(0x00);
+    expect(cpu.sp).toBe(0xFFFE);
+
+    //push af
+    cpu.execute_instruction(0xF5, new Uint8Array);
+    expect(cpu.sp).toBe(0xFFFE - 2);
+
+    //pop de
+    cpu.execute_instruction(0xD1, new Uint8Array);
+    expect(cpu.state.d).toBe(0x12);
+    expect(cpu.state.f).toBe(0x00);
+
+    //ld a, c
+    cpu.execute_instruction(0x79, new Uint8Array);
+    expect(cpu.state.a).toBe(cpu.state.c);
+
+    //and $F0
+    cpu.execute_instruction(0xE6, new Uint8Array([0xF0]));
+    expect(cpu.state.a).toBe(0x00);
+    expect(cpu.state.e).toBe(0x00);
+    expect(subtract8Bit(cpu.state.a, cpu.state.e).res).toBe(0x00);
+
+    //cp e
+    cpu.execute_instruction(0xBB, new Uint8Array);
+})

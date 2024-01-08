@@ -26,7 +26,6 @@ function interrupt_handler(emu: Emulator) {
     if((IE & (1 << I_VBLANK)) && (IF & (1 << I_VBLANK))) {
         emu.cpu.IME = false;
         emu.cpu.mmu.write_byte(0xFF0F, IF & ~(1 << I_VBLANK));
-        //console.log("Servicing vblank interrupt: " + emu.cpu.mmu.read_byte(0xFF0F).toString(2));
         push_interrupt(emu, ADDR_VBLANK);
         return;
     } else if((IE & (1 << I_LCD)) && (IF & (1 << I_LCD))) {
@@ -40,6 +39,7 @@ function interrupt_handler(emu: Emulator) {
         push_interrupt(emu, ADDR_TIMER);
         return;
     } else if((IE & (1 << I_SERIAL)) && (IF & (1 << I_SERIAL))) {
+        //console.log("Serial interrupt being handled");
         emu.cpu.IME = false;
         emu.cpu.mmu.write_byte(0xFF0F, IF & ~(1 << I_SERIAL));
         push_interrupt(emu, ADDR_SERIAL);

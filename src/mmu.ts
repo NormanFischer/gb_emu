@@ -1,4 +1,5 @@
 import HRAM from "./hram";
+import { request_interrupt } from "./interruptHandler";
 import IO from "./io";
 import PPU from "./ppu";
 import Rom from "./rom";
@@ -12,6 +13,8 @@ class MMU {
     hram: HRAM;
     ie: number;
     if: number;
+    serial_data: number;
+    serial_buf: string;
 
     constructor(romData: Uint8Array) {
         this.rom = new Rom(romData);
@@ -20,6 +23,8 @@ class MMU {
         this.hram = new HRAM();
         this.ie = 0;
         this.if = 0;
+        this.serial_data = 0;
+        this.serial_buf = "";
     }
 
     //Read size bytes from the given addr
@@ -67,7 +72,13 @@ class MMU {
             if(addr === 0xFF0F) {
                 return this.if;
             }
-            console.log("IO read for unimplemented addr @" + addr.toString(16));
+            if(addr === 0xFF01) {
+                return this.serial_data;
+            }
+            if(addr === 0xFF02) {
+                console.error("hmm");
+            }
+            //console.log("IO read for unimplemented addr @" + addr.toString(16));
             return 0xff;
         } else if(addr === 0xFFFF) {
             //console.log("Ie read");
@@ -119,7 +130,20 @@ class MMU {
                 this.dma_transfer(val);
                 return;
             }
-            //console.log("IO write for unimplemented addr @" + addr.toString(16) + " val = " + val.toString(16));
+            if(addr === 0xFF01) {
+                if(val === 10) {
+                    console.log("Serial: " + this.serial_buf);
+                    this.serial_buf = "";
+                } else {
+                    this.serial_buf += String.fromCharCode(val);
+                }
+                return;
+            }
+            if(addr === 0xFF02 && val === 0x81) {
+                console.log("Requesting serial interrupt");
+                request_interrupt(this, 3);
+                return;
+            }
             return;
         } else if(addr === 0xFFFF) {
             this.ie = val;
