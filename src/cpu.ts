@@ -15,6 +15,7 @@ class CPUContext {
     private _isRunning: boolean;
     private _interrupt_enable_pending: boolean;
     private _IME: boolean;
+    private _isHalted: boolean;
 
     //Lookup table for all instructions
     instructions: { [key: number]: Instruction } = {
@@ -25,12 +26,14 @@ class CPUContext {
         0x04: {op: this.INC_B.bind(this),    len: 1},
         0x05: {op: this.DEC_B.bind(this),    len: 1},
         0x06: {op: this.LD_B_D8.bind(this),  len: 2},
+        0x07: {op: this.RLCA.bind(this),     len: 1},
         0x09: {op: this.ADD_HL_BC.bind(this),len: 1},
         0x0A: {op: this.LD_A_MBC.bind(this), len: 1},
         0x0B: {op: this.DEC_BC.bind(this),   len: 1},
         0x0C: {op: this.INC_C.bind(this),    len: 1},
         0x0D: {op: this.DEC_C.bind(this),    len: 1},
         0x0E: {op: this.LD_C_D8.bind(this),  len: 2},
+        0x0F: {op: this.RRCA.bind(this),     len: 1},
     
         0x11: {op: this.LD_DE_D16.bind(this),len: 3},
         0x12: {op: this.LD_MDE_A.bind(this), len: 1},
@@ -38,6 +41,7 @@ class CPUContext {
         0x14: {op: this.INC_D.bind(this),    len: 1},
         0x15: {op: this.DEC_D.bind(this),    len: 1},
         0x16: {op: this.LD_D_D8.bind(this),  len: 2},
+        0x17: {op: this.RLA.bind(this),      len: 1},
         0x18: {op: this.JR_R8.bind(this),    len: 2},
         0x19: {op: this.ADD_HL_DE.bind(this),len: 1},
         0x1A: {op: this.LD_A_MDE.bind(this), len: 1},
@@ -54,6 +58,7 @@ class CPUContext {
         0x24: {op: this.INC_H.bind(this),    len: 1},
         0x25: {op: this.DEC_H.bind(this),    len: 1},
         0x26: {op: this.LD_H_D8.bind(this),  len: 2},
+        0x27: {op: this.DAA.bind(this),      len: 1},
         0x28: {op: this.JR_Z_R8.bind(this),  len: 2},
         0x29: {op: this.ADD_HL_HL.bind(this),len: 1},
         0x2A: {op: this.LD_A_MHLI.bind(this),len: 1},
@@ -63,6 +68,7 @@ class CPUContext {
         0x2E: {op: this.LD_L_D8.bind(this),  len: 2},
         0x2F: {op: this.CPL.bind(this),      len: 1},
     
+        0x30: {op: this.JR_NC_R8.bind(this), len: 2},
         0x31: {op: this.LD_SP_D16.bind(this),len: 3},
         0x32: {op: this.LD_MHLD_A.bind(this),len: 1},
         0x33: {op: this.INC_SP.bind(this),   len: 1},
@@ -70,12 +76,14 @@ class CPUContext {
         0x35: {op: this.DEC_MHL.bind(this),  len: 1},
         0x36: {op: this.LD_MHL_D8.bind(this),len: 2},
         0x37: {op: this.SCF.bind(this),      len: 1},
+        0x38: {op: this.JR_C_R8.bind(this),  len: 2},
         0x39: {op: this.ADD_HL_SP.bind(this),len: 1},
         0x3A: {op: this.LD_A_MHLD.bind(this),len: 1},
         0x3B: {op: this.DEC_SP.bind(this),   len: 1},
         0x3C: {op: this.INC_A.bind(this),    len: 1},
         0x3D: {op: this.DEC_A.bind(this),    len: 1},
         0x3E: {op: this.LD_A_D8.bind(this),  len: 2},
+        0x3F: {op: this.CCF.bind(this),      len: 1},
 
         0x40: {op: this.LD_B_B.bind(this),   len: 1},
         0x41: {op: this.LD_B_C.bind(this),   len: 1},
@@ -153,6 +161,31 @@ class CPUContext {
         0x85: {op: this.ADD_A_L.bind(this),  len: 1},
         0x86: {op: this.ADD_A_MHL.bind(this),len: 1},
         0x87: {op: this.ADD_A_A.bind(this),  len: 1},
+        0x88: {op: this.ADC_A_B.bind(this),  len: 1},
+        0x89: {op: this.ADC_A_C.bind(this),  len: 1},
+        0x8A: {op: this.ADC_A_D.bind(this),  len: 1},
+        0x8B: {op: this.ADC_A_E.bind(this),  len: 1},
+        0x8C: {op: this.ADC_A_H.bind(this),  len: 1},
+        0x8D: {op: this.ADC_A_L.bind(this),  len: 1},
+        0x8E: {op: this.ADC_A_MHL.bind(this),  len: 1},
+        0x8F: {op: this.ADC_A_A.bind(this),  len: 1},
+
+        0x90: {op: this.SUB_B.bind(this),    len: 1},
+        0x91: {op: this.SUB_C.bind(this),    len: 1},
+        0x92: {op: this.SUB_D.bind(this),    len: 1},
+        0x93: {op: this.SUB_E.bind(this),    len: 1},
+        0x94: {op: this.SUB_H.bind(this),    len: 1},
+        0x95: {op: this.SUB_L.bind(this),    len: 1},
+        0x96: {op: this.SUB_MHL.bind(this),    len: 1},
+        0x97: {op: this.SUB_A.bind(this),    len: 1},
+        0x98: {op: this.SBC_A_B.bind(this),    len: 1},
+        0x99: {op: this.SBC_A_C.bind(this),    len: 1},
+        0x9A: {op: this.SBC_A_D.bind(this),    len: 1},
+        0x9B: {op: this.SBC_A_E.bind(this),    len: 1},
+        0x9C: {op: this.SBC_A_H.bind(this),    len: 1},
+        0x9D: {op: this.SBC_A_L.bind(this),    len: 1},
+        0x9E: {op: this.SBC_A_MHL.bind(this),    len: 1},
+        0x9F: {op: this.SBC_A_A.bind(this),    len: 1},
 
         0xA0: {op: this.AND_B.bind(this),    len: 1},
         0xA1: {op: this.AND_C.bind(this),    len: 1},
@@ -190,6 +223,7 @@ class CPUContext {
 
         0xC0: {op: this.RET_NZ.bind(this),   len: 1},
         0xC1: {op: this.POP_BC.bind(this),   len: 1},
+        0xC2: {op: this.JP_NZ_A16.bind(this),len: 3},
         0xC3: {op: this.JP_A16.bind(this),   len: 3},
         0xC4: {op: this.CALL_NZ_A16.bind(this), len: 3},
         0xC5: {op: this.PUSH_BC.bind(this),  len: 1},
@@ -199,15 +233,19 @@ class CPUContext {
         0xC9: {op: this.RET.bind(this),      len: 1},
         0xCA: {op: this.JP_Z_A16.bind(this), len: 3},
         0xCB: {op: this.CB.bind(this),       len: 2},
+        0xCC: {op: this.CALL_Z_A16.bind(this),len: 3},
         0xCD: {op: this.CALL_A16.bind(this), len: 3},
         0xCE: {op: this.ADC_A_D8.bind(this), len: 2},
         0xCF: {op: this.RST_08H.bind(this),  len: 1},
 
         0xD1: {op: this.POP_DE.bind(this),   len: 1},
+        0xD2: {op: this.JP_NC_A16.bind(this),len: 3},
         0xD5: {op: this.PUSH_DE.bind(this),  len: 1},
         0xD6: {op: this.SUB_D8.bind(this),   len: 2},
         0xD7: {op: this.RST_10H.bind(this),  len: 1},
+        0xD8: {op: this.RET_C.bind(this),    len: 1},
         0xD9: {op: this.RETI.bind(this),     len: 1},
+        0xDE: {op: this.SBC_A_D8.bind(this), len: 2},
         0xDF: {op: this.RST_18H.bind(this),  len: 1},
 
         0xE0: {op: this.LDH_MA8_A.bind(this),len: 2},
@@ -218,6 +256,7 @@ class CPUContext {
         0xE7: {op: this.RST_20H.bind(this),  len: 1},
         0xE9: {op: this.JP_MHL.bind(this),   len: 1},
         0xEA: {op: this.LD_MA16_A.bind(this),len: 3},
+        0xEE: {op: this.XOR_D8.bind(this),   len: 2},
         0xEF: {op: this.RST_28H.bind(this),  len: 1},
 
         0xF0: {op: this.LDH_A_MA8.bind(this),len: 2},
@@ -227,6 +266,8 @@ class CPUContext {
         0xF5: {op: this.PUSH_AF.bind(this),  len: 1},
         0xF6: {op: this.OR_D8.bind(this),    len: 2},
         0xF7: {op: this.RST_30H.bind(this),  len: 1},
+        0xF8: {op: this.LD_HL_SPR8.bind(this),len: 2},
+        0xF9: {op: this.LD_SP_HL.bind(this), len: 1},
         0xFA: {op: this.LD_A_MA16.bind(this),len: 3},
         0xFB: {op: this.EI.bind(this),       len: 1},
         0xFE: {op: this.CP_D8.bind(this),    len: 2},
@@ -565,6 +606,7 @@ class CPUContext {
         this._IME = false;
         this._interrupt_enable_pending = false;
         this._mmu = new MMU(romData);
+        this._isHalted = false;
     }
 
     start_cpu() {
@@ -792,6 +834,34 @@ class CPUContext {
         this.set_flags(res.zero, 1, res.halfCarry, res.carry);
     }
 
+    private add_val(val: number): number {
+        const res = add8Bit(this._state.a, val);
+        this._state.a = res.res;
+        this.set_flags(res.zero, 0, res.halfCarry, res.carry);
+        return res.res;
+    }
+
+    private addC_val(val: number): number {
+        const res = add8BitC(this._state.a, val, this.get_carry());
+        this._state.a = res.res;
+        this.set_flags(res.zero, 0, res.halfCarry, res.carry);
+        return res.res;
+    }
+
+    private sub_val(val: number): number {
+        const res = subtract8Bit(this._state.a, val);
+        this._state.a = res.res;
+        this.set_flags(res.zero, 1, res.halfCarry, res.carry);
+        return res.res;
+    }
+
+    private subC_val(val: number): number {
+        const res = subtract8BitC(this._state.a, val, this.get_carry());
+        this._state.a = res.res;
+        this.set_flags(res.zero, 1, res.halfCarry, res.carry);
+        return res.res;
+    }
+
     push_8bit(val: number) {
         this._mmu.write_byte(--this._sp, val);
     }
@@ -860,6 +930,14 @@ class CPUContext {
         this._state.b = args[0];
         return 8;
     }
+
+    //0x06 : RLCA
+    private RLCA(): number {
+        this._state.a = this.cb_rlc(this._state.a);
+        this.set_flags(0, undefined, undefined, undefined); 
+        return 4;
+    }
+    
     
     //0x09 : ADD_HL_BC
     private ADD_HL_BC(): number {
@@ -905,6 +983,13 @@ class CPUContext {
         return 8;
     }
 
+    //0x0F : RRCA
+    private RRCA(): number {
+        this._state.a = this.cb_rrc(this._state.a);
+        this.set_flags(0, undefined, undefined, undefined); 
+        return 4;
+    }
+
     //0x11 : LD_DE_D16
     private LD_DE_D16(args: Uint8Array): number {
         this._state.d = args[1];
@@ -945,6 +1030,13 @@ class CPUContext {
     private LD_D_D8(args: Uint8Array): number {
         this._state.d = args[0];
         return 8;
+    }
+
+    //0x17 : RLA
+    private RLA(): number {
+        let res = this.cb_rl(this._state.a);
+        this._state.a = res;
+        return 4;
     }
 
     //0x18 : JR_R8
@@ -1059,6 +1151,28 @@ class CPUContext {
         return 8;
     }
 
+    //0x27 : DAA
+    private DAA(): number {
+        //idrk whats going on here
+        let correction = 0;
+        let setFlagC: bit = 0;
+
+        if(this.get_halfCarry() || (!this.get_sub() && (this._state.a & 0xF) > 0x09)) {
+            correction |= 0x6;
+        }
+
+        if(this.get_carry() || (!this.get_sub() && this._state.a > 0x99)) {
+            correction |= 0x60;
+            setFlagC = this.get_carry();
+        }
+
+        this._state.a += this.get_sub() ? -correction : correction;
+        this._state.a &= 0xFF;
+
+        this.set_flags(this._state.a === 0 ? 1 : 0, undefined, 0, setFlagC); 
+        return 4;
+    }
+
     //0x28 : JR_Z_R8
     private JR_Z_R8(args: Uint8Array): number {
         const zeroFlag = this.get_zero();
@@ -1124,6 +1238,17 @@ class CPUContext {
         return 4;
     }
 
+    //0x30 : JR_NC_R8
+    private JR_NC_R8(args: Uint8Array): number {
+        const carryFlag = this.get_carry();
+        if(!carryFlag) {
+            const e = u8Toi8(args[0]);
+            this._pc += e;
+            return 12;
+        }
+        return 8;
+    }
+
     //0x31 : LD_SP_D16
     private LD_SP_D16(args: Uint8Array): number {
         const val = leTo16Bit(args[0], args[1]);
@@ -1176,6 +1301,16 @@ class CPUContext {
         return 4;
     }
 
+    //0x38 : JP_C_R8
+    private JR_C_R8(args: Uint8Array) {
+        if(this.get_carry()) {
+            const e = u8Toi8(args[0]);
+            this._pc += e;
+            return 12;
+        }
+        return 8;
+    }
+
     //0x39 : ADD_HL_SP
     private ADD_HL_SP(): number {
         const res = add16Bit(get_hl(this._state), this._sp);
@@ -1219,6 +1354,16 @@ class CPUContext {
     private LD_A_D8(args: Uint8Array): number {
         this._state.a = args[0];
         return 8;
+    }
+    
+    //0x3F : CCF
+    private CCF(): number {
+        let carry: bit = 0;
+        if(this.get_carry() === 0) {
+            carry = 1;
+        }   
+        this.set_flags(undefined, 0, 0, carry);
+        return 4;
     }
 
     //0x40 : LD_B_B
@@ -1551,7 +1696,8 @@ class CPUContext {
 
     //0x76 : HALT
     private HALT(): number {
-        console.error("HALT, need to implement");
+        this._isHalted = true;
+        this._IME = false;
         return 4;
     }
 
@@ -1614,77 +1760,204 @@ class CPUContext {
 
     //0x80 : ADD_A_B
     private ADD_A_B(): number {
-        const res = add8Bit(this._state.a, this._state.b);
-        this._state.a = res.res;
-        this.set_flags(res.zero, 0, res.halfCarry, res.carry);
+        this.add_val(this._state.b);
         return 4;
     }
 
     //0x81 : ADD_A_C
     private ADD_A_C(): number {
-        const res = add8Bit(this._state.a, this._state.c);
-        this._state.a = res.res;
-        this.set_flags(res.zero, 0, res.halfCarry, res.carry);
+        this.add_val(this._state.c);
         return 4;
     }
 
     //0x82 : ADD_A_D
     private ADD_A_D(): number {
-        const res = add8Bit(this._state.a, this._state.d);
-        this._state.a = res.res;
-        this.set_flags(res.zero, 0, res.halfCarry, res.carry);
+        this.add_val(this._state.d);
         return 4;
     }
 
     //0x83 : ADD_A_E
     private ADD_A_E(): number {
-        const res = add8Bit(this._state.a, this._state.e);
-        this._state.a = res.res;
-        this.set_flags(res.zero, 0, res.halfCarry, res.carry);
+        this.add_val(this._state.e);
         return 4;
     }
 
     //0x84 : ADD_A_H
     private ADD_A_H(): number {
-        const res = add8Bit(this._state.a, this._state.h);
-        this._state.a = res.res;
-        this.set_flags(res.zero, 0, res.halfCarry, res.carry);
+        this.add_val(this._state.h);
         return 4;
     }
 
     //0x85 : ADD_A_L
     private ADD_A_L(): number {
-        const res = add8Bit(this._state.a, this._state.l);
-        this._state.a = res.res;
-        this.set_flags(res.zero, 0, res.halfCarry, res.carry);
+        this.add_val(this._state.l);
         return 4;
     }
 
     //0x86 : ADD_A_MHL
-    private ADD_A_MHL() {
-        const addr = get_hl(this._state);
-        const res = add8Bit(this._state.a, this._mmu.read_byte(addr));
-        this._state.a = res.res;
-        this.set_flags(res.zero, 0, res.halfCarry, res.carry);
-        return 4;
+    private ADD_A_MHL(): number {
+        this.add_val(this._mmu.read_byte(get_hl(this._state)));
+        return 8;
     }
 
     //0x87 : ADD_A_A
-    private ADD_A_A() {
-        const res = add8Bit(this._state.a, this._state.a);
-        this._state.a = res.res;
-        this.set_flags(res.zero, 0, res.halfCarry, res.carry);
+    private ADD_A_A(): number {
+        this.add_val(this._state.a);
+        return 4;
+    }
+
+    //0x88 : ADC_A_B
+    private ADC_A_B(): number {
+        this.addC_val(this._state.b);
+        return 4;
+    }
+
+    //0x89 : ADC_A_C
+    private ADC_A_C(): number {
+        this.addC_val(this._state.c);
+        return 4;
+    }
+
+    //0x8A : ADC_A_D
+    private ADC_A_D(): number {
+        this.addC_val(this._state.d);
+        return 4;
+    }
+
+    //0x8B : ADC_A_E
+    private ADC_A_E(): number {
+        this.addC_val(this._state.e);
+        return 4;
+    }
+
+    //0x8C : ADC_A_H
+    private ADC_A_H(): number {
+        this.addC_val(this._state.h);
+        return 4;
+    }
+
+    //0x8D : ADC_A_L
+    private ADC_A_L(): number {
+        this.addC_val(this._state.l);
+        return 4;
+    }
+
+    //0x8E : ADC_A_MHL
+    private ADC_A_MHL(): number {
+        this.addC_val(this._mmu.read_byte(get_hl(this._state)));
+        return 8;
+    }   
+
+    //0x8F : ADC_A_A
+    private ADC_A_A(): number {
+        this.addC_val(this._state.a);
+        return 4;
+    }
+
+    //0x90 : SUB_B
+    private SUB_B(): number {
+        this.sub_val(this._state.b);
+        return 4;
+    }
+
+    //0x91 : SUB_C
+    private SUB_C(): number {
+        this.sub_val(this._state.c);
+        return 4;
+    }
+
+    //0x92 : SUB_D
+    private SUB_D(): number {
+        this.sub_val(this._state.d);
+        return 4;
+    }
+
+    //0x93 : SUB_E
+    private SUB_E(): number {
+        this.sub_val(this._state.e);
+        return 4;
+    }
+
+    //0x94 : SUB_H
+    private SUB_H(): number {
+        this.sub_val(this._state.h);
+        return 4;
+    }
+
+    //0x95 : SUB_L
+    private SUB_L(): number {
+        this.sub_val(this._state.l);
+        return 4;
+    }
+
+    //0x96 : SUB_MHL
+    private SUB_MHL(): number {
+        this.sub_val(this._mmu.read_byte(get_hl(this._state)));
+        return 8;
+    }
+
+    //0x97 : SUB_A
+    private SUB_A(): number {
+        this.sub_val(this._state.a);
+        return 4;
+    }
+
+    //0x98 : SBC_A_B
+    private SBC_A_B(): number {
+        this.subC_val(this._state.b);
+        return 4;
+    }
+
+    //0x99 : SBC_A_C
+    private SBC_A_C(): number {
+        this.subC_val(this._state.c);
+        return 4;
+    }
+
+    //0x9A : SBC_A_D
+    private SBC_A_D(): number {
+        this.subC_val(this._state.d);
+        return 4;
+    }
+
+    //0x9B : SBC_A_E
+    private SBC_A_E(): number {
+        this.subC_val(this._state.e);
+        return 4;
+    }
+
+    //0x9C : SBC_A_H
+    private SBC_A_H(): number {
+        this.subC_val(this._state.h);
+        return 4;
+    }
+
+    //0x9D : SBC_A_L
+    private SBC_A_L(): number {
+        this.subC_val(this._state.l);
+        return 4;
+    }
+
+    //0x9E : SBC_A_MHL
+    private SBC_A_MHL(): number {
+        this.subC_val(this._mmu.read_byte(get_hl(this._state)));
+        return 8;
+    }
+
+    //0x9F : SBC_A_A
+    private SBC_A_A(): number {
+        this.subC_val(this._state.a);
         return 4;
     }
 
     //0xA0 : AND_B
-    private AND_B() {
+    private AND_B(): number {
         this.and_val(this._state.b);
         return 4;
     }
 
     //0xA1 : AND_C
-    private AND_C() {
+    private AND_C(): number {
         this.and_val(this._state.c);
         return 4;
     }
@@ -1893,6 +2166,16 @@ class CPUContext {
         return 12;
     }
 
+    //0xC2 : JP_NZ_A16
+    private JP_NZ_A16(args: Uint8Array) {
+        const addr = leTo16Bit(args[0], args[1]);
+        if(!this.get_zero()) {
+            this._pc = addr;
+            return 16;
+        }
+        return 12;
+    }
+
     //0xC3 : JP_A16
     private JP_A16(args: Uint8Array) {
         const addr = leTo16Bit(args[0], args[1]);
@@ -1903,11 +2186,10 @@ class CPUContext {
 
     //0xC4 : CALL_NZ_A16
     private CALL_NZ_A16(args: Uint8Array) {
-        const msb = args[0];
-        const lsb = args[1];
+        const addr = leTo16Bit(args[0], args[1]);
         if(!this.get_zero()) {
             this.push_16bit(this._pc);
-            this._pc = (msb << 8) | lsb;
+            this._pc = addr;
             return 24;
         }
         return 12;
@@ -1943,13 +2225,13 @@ class CPUContext {
     }
 
     //0xC9 : RET
-    private RET() {
+    private RET(): number {
         this.ret_step();
         return 16;
     }
 
     //0xCA : JP_Z_A16
-    private JP_Z_A16(args: Uint8Array) {
+    private JP_Z_A16(args: Uint8Array): number {
         if(this.get_zero()) {
             this._pc = leTo16Bit(args[0], args[1]);
             console.log("JP_Z: Jumping to " + this._pc.toString(16));
@@ -1959,10 +2241,22 @@ class CPUContext {
     }
 
     //0xCB : CB
-    private CB(args: Uint8Array) {
+    private CB(args: Uint8Array): number {
         this.cb[args[0]]();
         console.error("TODO: Implement mcycles 0xCB" + args[0].toString(16));
         return 0;
+    }
+
+    //0xCC : CALL_Z_A16
+    private CALL_Z_A16(args: Uint8Array): number {
+        const msb = args[1];
+        const lsb = args[0];
+        if(this.get_zero()) {
+            this.push_16bit(this._pc);
+            this._pc = (msb << 8) | lsb;
+            return 24;
+        }
+        return 12;
     }
 
     //0xCD : CALL_A16
@@ -1977,8 +2271,7 @@ class CPUContext {
 
     //0xCE : ADC_A_D8
     private ADC_A_D8(args: Uint8Array) {
-        //console.log("adc a: " + args);
-        const res = add8BitC(this._state.a, args[0], this.get_zero());
+        const res = add8BitC(this._state.a, args[0], this.get_carry());
         this._state.a = res.res;
         this.set_flags(res.zero, 0, res.halfCarry, res.carry);
         return 8;
@@ -1993,6 +2286,16 @@ class CPUContext {
     //0xD1 : POP_DE
     private POP_DE(): number {
         set_de(this._state, this.pop_16bit());
+        return 12;
+    }
+
+    //0xD2 : JP_NC_A16
+    private JP_NC_A16(args: Uint8Array) {
+        const addr = leTo16Bit(args[0], args[1]);
+        if(!this.get_carry()) {
+            this._pc = addr;
+            return 16;
+        }
         return 12;
     }
 
@@ -2016,12 +2319,27 @@ class CPUContext {
         return 16;
     }
 
+    //0xD8 : RET_C
+    private RET_C(): number {
+        if(this.get_carry()) {
+            this.ret_step();
+            return 20;
+        }
+        return 8;
+    }
+
     //0xD9 : RETI
     private RETI(): number {
         console.log("RETI @" + this._pc.toString(16));
         this.ret_step();
         this.interrupt_enable_pending = true;
         return 16;
+    }
+
+    //0xDE : SBC_A_D8
+    private SBC_A_D8(args: Uint8Array): number {
+        this.subC_val(args[0]);
+        return 8;
     }
 
     //0xDF : RST_18H
@@ -2083,6 +2401,12 @@ class CPUContext {
         return 16;
     }
 
+    //0xEE : XOR_D8
+    private XOR_D8(args: Uint8Array): number {
+        this.xor_val(args[0]);
+        return 8;
+    }
+
     //0xEF : RST_28H
     private RST_28H(): number {
         this.restart_step(0x0028);
@@ -2136,10 +2460,25 @@ class CPUContext {
         return 16;
     }
 
+    //0xF8 : LD_HL_SPR8
+    private LD_HL_SPR8(args: Uint8Array): number {
+        const res = add16Bit(this._sp, args[0]);
+        set_hl(this._state, res.res);
+        this.set_flags(0,0,res.halfCarry,res.carry);
+        return 12;
+    }
+
+    //0xF9 : LD_SP_HL
+    private LD_SP_HL(): number {
+        this._sp = get_hl(this._state);
+        return 8;
+    }
+
     //0xFA : LD_A_MA16
     private LD_A_MA16(args: Uint8Array): number {
         const addr = leTo16Bit(args[0], args[1]);
         const val = this._mmu.read_byte(addr);
+        console.log("Loading " + val + " into A register @" + addr.toString(16));
         this._state.a = val;
         return 8;
     }
@@ -2187,6 +2526,14 @@ class CPUContext {
         return this._isRunning;
     }
 
+    public get isHalted() {
+        return this._isHalted;
+    }
+
+    public set isHalted(isHalted: boolean) {
+        this._isHalted = isHalted;
+    }
+
     public get mmu() {
         return this._mmu;
     }
@@ -2214,6 +2561,16 @@ class CPUContext {
     private get_zero(): bit {
         const zeroMask = 1 << FLAGS_ZERO;
         return (this._state.f & zeroMask) !== 0 ? 1 : 0;
+    }
+
+    private get_sub(): bit {
+        const subMask = 1 << FLAGS_SUBTRACT;
+        return (this._state.f & subMask) !== 0 ? 1 : 0;
+    }
+
+    private get_halfCarry(): bit {
+        const hcMask = 1 << FLAGS_HALF_CARRY;
+        return (this._state.f & hcMask) !== 0 ? 1 : 0;
     }
 
     private get_carry(): bit {
@@ -2336,6 +2693,15 @@ function subtract8Bit(a: number, b: number): {res: number, zero: bit, carry: bit
     const zero = (res === 0) ? 1 : 0;
     const carry = (((a - b) & 0xFF) !== 0) ? 1 : 0;
     const halfCarry = ((((a & 0xF) - (b & 0xF)) & 0x10) === 0x10) ? 1 : 0;
+    return {res, zero, carry, halfCarry};
+}
+
+//Subtract two 8 bit numbers with carry
+function subtract8BitC(a: number, b: number, C: bit): {res: number, zero: bit, carry: bit, halfCarry: bit} {
+    const res = (a - C - b) & 0xFF;
+    const zero = (res === 0) ? 1 : 0;
+    const carry = (((a - C - b) & 0xFF) !== 0) ? 1 : 0;
+    const halfCarry = ((((a & 0xF) - (C & 0xF) - (b & 0xF)) & 0x10) === 0x10) ? 1 : 0;
     return {res, zero, carry, halfCarry};
 }
 

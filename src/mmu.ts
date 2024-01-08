@@ -40,12 +40,10 @@ class MMU {
         } else if (addr < 0xA000) {
             //vram
             const val = this.ppu.vram_read(addr);
-            //console.log("vram read @" + addr.toString(16) + " val = " + val.toString(16));
             return val;
         } else if (addr < 0xC000) {
             //cart ram
-            //console.log("cart ram read (unimplemented) @" + addr.toString(16));
-            return 0xff;
+            return this.rom.extern_read(addr);
         } else if (addr < 0xE000) {
             //wram
             return this.rom.wram_read(addr);
@@ -84,25 +82,23 @@ class MMU {
     write_byte(addr: number, val: number) {
         if (addr < 0x8000) {
             //rom data
-            //console.log("not going to write to rom");
+            console.log("not going to write to rom");
         } else if (addr < 0xA000) {
             //vram
-            //console.log("vram write @" + addr.toString(16) + " val = " + val.toString(16));
             this.ppu.vram_write(addr, val);
         } else if (addr < 0xC000) {
             //cart ram
-            //console.log("cart ram write (unimplemented) @" + addr.toString(16) + " val = " + val.toString(16));
+            this.rom.extern_write(addr, val);
+            return;
         } else if (addr < 0xE000) {
             //wram
             this.rom.wram_write(addr, val);
+            return;
         } else if (addr < 0xFE00) {
             //reserved echo ram
             console.log("Echo ram reserved, write denied...");
+            return;
         } else if (addr < 0xFEA0) {
-            //oam read todo: dma transfer stuff
-            if(val != 0) {
-                console.log("Writing " + val.toString(16) + " to oam");
-            }
             this.ppu.oam_write(addr, val);
         } else if (addr < 0xFF00) {
             console.log("Reserved unusable write denied...");

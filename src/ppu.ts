@@ -74,6 +74,7 @@ class PPU {
             this._currentLine = val;
         } else if(addr === 0xFF41) {
             this._mode = val & 0b11;
+
         } else if(addr === 0xFF42) {
             this._scy = val;
         } else if(addr === 0xFF43) {
@@ -131,6 +132,11 @@ class PPU {
         }
     }
 
+    //Render the LCD game screen (160 x 144)
+    render_screen(ctx: CanvasRenderingContext2D) {
+
+    }
+
     //Called in the main loop
     //cycles are the number of cycles from the last cpu execution
     ppu_step(cycles: number) {
@@ -173,7 +179,6 @@ class PPU {
                     this._currentLine++;
 
                     if(this._currentLine > DISPLAY_LINES + 10) {
-                        console.log("Vblank done");
                         this._mode = PPU_MODE_OAM;
                         this._currentLine = 0;
                     }

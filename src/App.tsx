@@ -9,6 +9,7 @@ function App() {
   const [emu, setEmu] = useState<Emulator | null>(null);
   const [currentPC, setPC] = useState<string>("");
   const [currentA, setA] = useState<string>("");
+  const [debug, setDebug] = useState<boolean>(false);
 
   const canvas = useRef<HTMLCanvasElement | null>(null);
 
@@ -36,7 +37,7 @@ function App() {
     const fr = new FileReader();
     fr.onload = function(ev) {
       const u8Arr = new Uint8Array(ev.target?.result as ArrayBuffer);
-      setEmu(new Emulator(u8Arr, (canvas.current as HTMLCanvasElement).getContext('2d') as CanvasRenderingContext2D));
+      setEmu(new Emulator(u8Arr, (canvas.current as HTMLCanvasElement).getContext('2d') as CanvasRenderingContext2D, debug));
     };
     fr.readAsArrayBuffer(currentRom as Blob);
   }
@@ -51,13 +52,21 @@ function App() {
           <button onClick={() => {
             emu.cpu.isRunning = false;
           }}>Stop</button>
+          <button onClick={() => {
+            if(emu.debug) {
+              emu.emu_step();
+            }
+          }}>Step</button>
         </>
       }
       <canvas id="vramMap" ref={canvas} width="128" height="192" style={{border: "1px solid #d3d3d3"}}></canvas>
       <input type="file" accept=".gb" onChange={handleSelectFile}/>
       {
         currentRom &&
+        <>
         <button onClick={retrieveCartData}>Start emu</button>
+        <button onClick={() => setDebug(!debug)}>Debug: {debug}</button>
+        </>
       }
     </>
   )

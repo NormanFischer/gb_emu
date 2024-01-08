@@ -7,12 +7,14 @@ const CYCLES_PER_FRAME = 69905;
 class Emulator {
     private _cpu: CPUContext;
     private vramCanvasContext: CanvasRenderingContext2D;
+    private _debug: boolean;
 
     changeStateCallback: Function | null = null;
 
-    constructor(romData: Uint8Array, vramCanvasContext: CanvasRenderingContext2D) {
+    constructor(romData: Uint8Array, vramCanvasContext: CanvasRenderingContext2D, debug: boolean) {
         this._cpu = new CPUContext(romData);
         this.vramCanvasContext = vramCanvasContext;
+        this._debug = debug;
     };
 
     start_emu() {
@@ -20,7 +22,7 @@ class Emulator {
         this.emu_step();
     }
 
-    private emu_step() {
+    emu_step() {
         let currentCycles = 0;
         while(currentCycles < CYCLES_PER_FRAME && this._cpu.isRunning) {
             const stepCycles = this.cpu_step();
@@ -37,21 +39,32 @@ class Emulator {
 
         //Update vram map
         this._cpu.mmu.ppu.put_vram_image(this.vramCanvasContext);
-        if(this._cpu.isRunning) {
+        if(this._cpu.isRunning && !this.debug) {
             requestAnimationFrame(() => this.emu_step());
         }
     }
 
     private cpu_step(): number {
-        const opcode = this.fetch_opcode();
-        if(!this.cpu.instructions[opcode]) {
-            console.error("Invalid opcode found: " + opcode.toString(16));
-            this._cpu.isRunning = false;
-            return -1;
+        let cycles;
+
+        if(!this._cpu.isHalted) {
+            const opcode = this.fetch_opcode();
+            if(!this.cpu.instructions[opcode]) {
+                console.error("Invalid opcode found: " + opcode.toString(16));
+                this._cpu.isRunning = false;
+                return -1;
+            }
+            //console.log("instr: " + (this._cpu.pc - 1).toString(16) + " -- opcode: 0x" + opcode.toString(16));
+            const args = this.fetch_args(opcode);
+            cycles = this._cpu.execute_instruction(opcode, args);
+        } else {
+            cycles = 1;
+            //Wait for IF register to be marked
+            if(this._cpu.mmu.read_byte(0xFF0F)) {
+                this._cpu.isHalted = false;
+                this._cpu.IME = true;
+            }
         }
-        //console.log("instr: " + (this._cpu.pc - 1).toString(16) + " -- opcode: 0x" + opcode.toString(16));
-        const args = this.fetch_args(opcode);
-        const cycles = this._cpu.execute_instruction(opcode, args);
 
         if(this._cpu.IME) {
             //Hanlde interrupts
@@ -67,7 +80,7 @@ class Emulator {
         //Frame rendering
         this._cpu.mmu.ppu.ppu_step(cycles);
         if(this._cpu.mmu.ppu.mode === 1) {
-            console.log("Interrupt requested");
+            console.log("Requesting vblank");
             request_interrupt(this._cpu.mmu, 0);
         }
         return cycles;
@@ -97,13 +110,18 @@ class Emulator {
             console.error("Invalid argLength found");
             return new Uint8Array;
         }
-        // const args = this._cpu.mmu.read(this._cpu.pc, argLen);
-        // this._cpu.pc += argLen;
-        // return args;
     }
 
     public get cpu(): CPUContext {
         return this._cpu;
+    }
+
+    public get debug(): boolean {
+        return this._debug;
+    }
+
+    public set debug(debug: boolean) {
+        this._debug = debug;
     }
 
 };
