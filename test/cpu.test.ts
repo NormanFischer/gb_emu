@@ -160,7 +160,10 @@ test("POP AF", () => {
     expect(cpu.state.a).toBe(0x00);
     expect(cpu.state.e).toBe(0x00);
     expect(subtract8Bit(cpu.state.a, cpu.state.e).res).toBe(0x00);
+});
 
-    //cp e
-    cpu.execute_instruction(0xBB, new Uint8Array);
-})
+test("CP rr", () => {
+    const cpu = new CPUContext(new Uint8Array);
+
+    
+});

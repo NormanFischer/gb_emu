@@ -242,11 +242,14 @@ class CPUContext {
         0xD0: {op: this.RET_NC.bind(this),   len: 1},
         0xD1: {op: this.POP_DE.bind(this),   len: 1},
         0xD2: {op: this.JP_NC_A16.bind(this),len: 3},
+        0xD4: {op: this.CALL_NC_A16.bind(this),len: 3},
         0xD5: {op: this.PUSH_DE.bind(this),  len: 1},
         0xD6: {op: this.SUB_D8.bind(this),   len: 2},
         0xD7: {op: this.RST_10H.bind(this),  len: 1},
         0xD8: {op: this.RET_C.bind(this),    len: 1},
         0xD9: {op: this.RETI.bind(this),     len: 1},
+        0xDA: {op: this.JP_C_A16.bind(this), len: 3},
+        0xDC: {op: this.CALL_C_A16.bind(this),len: 3},
         0xDE: {op: this.SBC_A_D8.bind(this), len: 2},
         0xDF: {op: this.RST_18H.bind(this),  len: 1},
 
@@ -804,11 +807,6 @@ class CPUContext {
         this._state.e = res & 0xFF;
     }
 
-    private inc_sp() {
-        const res = add16Bit(this._sp, 1).res;
-        this._sp = res;
-    }
-
     private dec_sp() {
         const res = subtract16bit(this._sp, 1).res;
         this._sp = res;
@@ -1276,7 +1274,8 @@ class CPUContext {
 
     //0x33 : INC_SP
     private INC_SP(): number {
-        this.inc_sp();
+        const res = add16Bit(this._sp, 1).res;
+        this._sp = res;
         return 8;
     }
 
@@ -2318,6 +2317,17 @@ class CPUContext {
         return 12;
     }
 
+    //0xD4 : CALL_NC_A16
+    private CALL_NC_A16(args: Uint8Array): number {
+        const addr = leTo16Bit(args[0], args[1]);
+        if(!this.get_carry()) {
+            this.push_16bit(this._pc);
+            this._pc = addr;
+            return 24;
+        }
+        return 12;
+    }
+
     //0xD5 : PUSH_DE
     private PUSH_DE(): number {
         this.push_16bit(get_de(this._state));
@@ -2353,6 +2363,27 @@ class CPUContext {
         this.ret_step();
         this.interrupt_enable_pending = true;
         return 16;
+    }
+
+    //0xDA : JP_C_A16
+    private JP_C_A16(args: Uint8Array): number {
+        if(this.get_carry()) {
+            this._pc = leTo16Bit(args[0], args[1]);
+            return 16;
+        }
+        return 12;
+    }
+
+    //0xDC : CALL_C_A16
+    private CALL_C_A16(args: Uint8Array): number {
+        const msb = args[1];
+        const lsb = args[0];
+        if(this.get_carry()) {
+            this.push_16bit(this._pc);
+            this._pc = (msb << 8) | lsb;
+            return 24;
+        }
+        return 12;
     }
 
     //0xDE : SBC_A_D8
@@ -2409,9 +2440,11 @@ class CPUContext {
 
     //0xE8 : ADD_SP_R8
     private ADD_SP_R8(args: Uint8Array): number {
-        const res = add16Bit(this._sp, args[0]);
-        this._sp = res.res;
-        this.set_flags(0, 0, res.halfCarry, res.carry);
+        const val = u8Toi8(args[0]);
+        const halfCarry = ((this._sp & 0xF) + (args[0] & 0xF) >= 0x10) ? 1 : 0;
+        const carry = ((this._sp & 0xFF) + (val & 0xFF) >= 0x100) ? 1 : 0;
+        this._sp += val;
+        this.set_flags(0, 0, halfCarry, carry);
         return 16;
     }
 
@@ -2489,9 +2522,11 @@ class CPUContext {
 
     //0xF8 : LD_HL_SPR8
     private LD_HL_SPR8(args: Uint8Array): number {
-        const res = add16Bit(this._sp, args[0]);
-        set_hl(this._state, res.res);
-        this.set_flags(0,0,res.halfCarry,res.carry);
+        const val = u8Toi8(args[0]);
+        const halfCarry = ((this._sp & 0xF) + (args[0] & 0xF) >= 0x10) ? 1 : 0;
+        const carry = ((this._sp & 0xFF) + (val & 0xFF) >= 0x100) ? 1 : 0;
+        set_hl(this._state, this._sp + val);
+        this.set_flags(0, 0, halfCarry, carry);
         return 12;
     }
 
@@ -2707,52 +2742,52 @@ function u8Toi8(val: number): number {
 }
 
 //Add two 8 bit numbers
-function add8Bit(a: number, b: number): {res: number, zero: bit, carry: bit, halfCarry: bit} {
+function add8Bit(a: number, b: number): {res: number, zero: bit, halfCarry: bit, carry: bit} {
     const res = (a + b) & 0xFF;
     const zero = (res === 0) ? 1 : 0;
-    const carry = (((a + b) & 0xFF) !== 0) ? 1 : 0;
-    const halfCarry = ((((a & 0xF) + (b & 0xF)) & 0x10) === 0x10) ? 1 : 0;
-    return {res, zero, carry, halfCarry};
-}
-
-function subtract8Bit(a: number, b: number): {res: number, zero: bit, carry: bit, halfCarry: bit} {
-    const res = (a - b) & 0xFF;
-    const zero = (res === 0) ? 1 : 0;
-    const carry = (((a - b) & 0xFF) !== 0) ? 1 : 0;
-    const halfCarry = ((((a & 0xF) - (b & 0xF)) & 0x10) === 0x10) ? 1 : 0;
-    return {res, zero, carry, halfCarry};
-}
-
-//Subtract two 8 bit numbers with carry
-function subtract8BitC(a: number, b: number, C: bit): {res: number, zero: bit, carry: bit, halfCarry: bit} {
-    const res = (a - C - b) & 0xFF;
-    const zero = (res === 0) ? 1 : 0;
-    const carry = (((a - C - b) & 0xFF) !== 0) ? 1 : 0;
-    const halfCarry = ((((a & 0xF) - (C & 0xF) - (b & 0xF)) & 0x10) === 0x10) ? 1 : 0;
-    return {res, zero, carry, halfCarry};
+    const carry = ((a & 0xFF) + (b & 0xFF) >= 0x100) ? 1 : 0;
+    const halfCarry = ((a & 0xF) + (b & 0xF) >= 0x10) ? 1 : 0;
+    return {res, zero, halfCarry, carry};
 }
 
 //Add two 8 bit numbers with carry
-function add8BitC(a: number, b: number, C: bit): {res: number, zero: bit, carry: bit, halfCarry: bit} {
+function add8BitC(a: number, b: number, C: bit): {res: number, zero: bit, halfCarry: bit, carry: bit} {
     const res = (a + b + C) & 0xFF;
     const zero = (res === 0) ? 1 : 0;
-    const carry = (((a + b + C) & 0xFF) !== 0) ? 1 : 0;
-    const halfCarry = ((((a & 0xF) + (b & 0xF) + (C & 0xF)) & 0x10) === 0x10) ? 1 : 0;
-    return {res, zero, carry, halfCarry};
+    const carry = (a + b + C > 0xFF) ? 1 : 0;
+    const halfCarry = ((a & 0xF) + (b & 0xF) + (C) > 0xF) ? 1 : 0;
+    return {res, zero, halfCarry, carry};
 }
 
-function add16Bit(a: number, b: number): {res: number, carry: bit, halfCarry: bit} {
+function add16Bit(a: number, b: number): {res: number, halfCarry: bit, carry: bit} {
     const res = (a + b) & 0xFFFF;
-    const carry = (((a + b) & 0xFFF) !== 0) ? 1 : 0;
-    const halfCarry = ((((a & 0xFFF) + (b & 0xFFF)) & 0x1000) === 0x1000) ? 1 : 0;
-    return {res, carry, halfCarry};
+    const carry = ((a + b) >= 0x10000) ? 1 : 0;
+    const halfCarry = ((a & 0xFFF) + (b & 0xFFF) >= 0x1000) ? 1 : 0;
+    return {res, halfCarry, carry};
 }
 
-function subtract16bit(a: number, b: number): {res: number, carry: bit, halfCarry: bit} {
+function subtract8Bit(a: number, b: number): {res: number, zero: bit, halfCarry: bit, carry: bit} {
+    const res = (a - b) & 0xFF;
+    const zero = (res === 0) ? 1 : 0;
+    const carry = (a - b < 0) ? 1 : 0;
+    const halfCarry = ((a & 0xF) - (b & 0xF) < 0) ? 1 : 0;
+    return {res, zero, halfCarry, carry};
+}
+
+//Subtract two 8 bit numbers with carry
+function subtract8BitC(a: number, b: number, C: bit): {res: number, zero: bit, halfCarry: bit, carry: bit} {
+    const res = (a - C - b) & 0xFF;
+    const zero = (res === 0) ? 1 : 0;
+    const carry = ((a - C - b) < 0) ? 1 : 0;
+    const halfCarry = (((a & 0xF) - (C) - (b & 0xF)) < 0) ? 1 : 0;
+    return {res, zero, halfCarry, carry};
+}
+
+function subtract16bit(a: number, b: number): {res: number, halfCarry: bit, carry: bit} {
     const res = (a - b) & 0xFFFF;
-    const carry = (((a - b) & 0xFFF) !== 0) ? 1 : 0;
-    const halfCarry = ((((a & 0xFFF) - (b & 0xFFF)) &0x1000) === 0x1000) ? 1 : 0;
-    return {res, carry, halfCarry};
+    const carry = ((a - b) < 0) ? 1 : 0;
+    const halfCarry = ((a & 0xFFF) - (b &0xFFF) < 0) ? 1 : 0;
+    return {res, halfCarry, carry};
 }
 
 export {CPUContext, type CPUState, set_hl, subtract8Bit};
