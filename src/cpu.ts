@@ -361,7 +361,7 @@ class CPUContext {
         0x3C: () => { this._state.h = this.cb_srl(this._state.h); },
         0x3D: () => { this._state.l = this.cb_srl(this._state.l); },
         0x3E: () => { const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_srl(this._mmu.read_byte(addr)));},
-        0x3F: () => { this._state.a = this.cb_swap(this._state.a); },
+        0x3F: () => { this._state.a = this.cb_srl(this._state.a); },
 
         //BIT 0
         0x40: () => { this.bit(0, this._state.b); },
@@ -481,7 +481,7 @@ class CPUContext {
         0x9C: () => {this._state.h = this.cb_res(3, this._state.h);},
         0x9D: () => {this._state.l = this.cb_res(3, this._state.l);},
         0x9E: () => {const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_res(3, this._mmu.read_byte(addr)));},
-        0x9F: () => {this._state.a = this.cb_res(3, this._state.b);},
+        0x9F: () => {this._state.a = this.cb_res(3, this._state.a);},
 
         //RES 4
         0xA0: () => {this._state.b = this.cb_res(4, this._state.b);},
@@ -657,7 +657,7 @@ class CPUContext {
             carry = 1;
             res |= 1;
         }
-        this.set_flags(val === 0 ? 1 : 0, 0, 0, carry);
+        this.set_flags(res === 0 ? 1 : 0, 0, 0, carry);
         return res;
     }
 
@@ -671,18 +671,18 @@ class CPUContext {
             carry = 1;
             res |= (1 << 7);
         }
-        this.set_flags(val === 0 ? 1 : 0, 0, 0, carry);
+        this.set_flags(res === 0 ? 1 : 0, 0, 0, carry);
         return res;
     }
 
     private cb_rl(val: number): number {
         let carry: bit = 0;
         let res = (val << 1) & 0xFF;
-        if(((val >> 7) & 1) !== 0) {
+        if((val >> 7 & 0x01) !== 0) {
             carry = 1;
         }
         res |= this.get_carry();
-        this.set_flags(val === 0 ? 1 : 0, 0, 0, carry);
+        this.set_flags(res === 0 ? 1 : 0, 0, 0, carry);
         return res;
     }
 
@@ -694,7 +694,7 @@ class CPUContext {
             carry = 1;
         }
         res |= (this.get_carry() << 7);
-        this.set_flags(val === 0 ? 1 : 0, 0, 0, carry);
+        this.set_flags(res === 0 ? 1 : 0, 0, 0, carry);
         return res;
     }
 
@@ -704,7 +704,7 @@ class CPUContext {
         if(((val >> 7) & 1) !== 0) {
             carry = 1;
         }
-        this.set_flags(val === 0 ? 1 : 0, 0, 0, carry);
+        this.set_flags(res === 0 ? 1 : 0, 0, 0, carry);
         return res;
     }
 
@@ -716,7 +716,7 @@ class CPUContext {
         }
         //msb does not change
         res |= ((val >> 7 & 1) << 7);
-        this.set_flags(val === 0 ? 1 : 0, 0, 0, carry);
+        this.set_flags(res === 0 ? 1 : 0, 0, 0, carry);
         return res;
     }
 
@@ -1044,6 +1044,7 @@ class CPUContext {
     private RLA(): number {
         let res = this.cb_rl(this._state.a);
         this._state.a = res;
+        this.set_flags(0, undefined, undefined, undefined);
         return 4;
     }
 
@@ -1102,6 +1103,7 @@ class CPUContext {
     private RRA(): number {
         let res = this.cb_rr(this._state.a);
         this._state.a = res;
+        this.set_flags(0, undefined, undefined, undefined);
         return 4;
     }
 
@@ -2620,7 +2622,7 @@ class CPUContext {
         this._interrupt_enable_pending = val;
     }
 
-    private get_zero(): bit {
+    public get_zero(): bit {
         const zeroMask = 1 << FLAGS_ZERO;
         return (this._state.f & zeroMask) !== 0 ? 1 : 0;
     }
@@ -2635,7 +2637,7 @@ class CPUContext {
         return (this._state.f & hcMask) !== 0 ? 1 : 0;
     }
 
-    private get_carry(): bit {
+    public get_carry(): bit {
         const carryMask = 1 << FLAGS_CARRY;
         return (this._state.f & carryMask) !== 0 ? 1 : 0;
     }

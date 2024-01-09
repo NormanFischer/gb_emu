@@ -121,6 +121,25 @@ test("CB tests", () => {
     expect(cpu.state.a).toBe(0b11111110);
     cpu.execute_instruction(0xCB, new Uint8Array([0x87]));
     expect(cpu.state.a).toBe(0b11111110);
+
+    cpu.state.a = 0b11110000;
+    cpu.set_flags(0,0,0,1);
+    cpu.execute_instruction(0x17, new Uint8Array([]));
+    expect(cpu.state.a).toBe(0b11100001);
+    expect(cpu.get_carry()).toBe(1);
+
+    cpu.state.a = 0b00000000;
+    cpu.set_flags(0,0,0,1);
+    cpu.execute_instruction(0x17, new Uint8Array([]));
+    expect(cpu.state.a).toBe(0b00000001);
+    expect(cpu.get_carry()).toBe(0);
+
+    cpu.state.a = 0b11111111;
+    cpu.set_flags(0,0,0,0);
+    cpu.execute_instruction(0x17, new Uint8Array([]));
+    expect(cpu.state.a).toBe(0b11111110);
+    expect(cpu.get_carry()).toBe(1);
+
 });
 
 test("POP AF", () => {
@@ -160,10 +179,4 @@ test("POP AF", () => {
     expect(cpu.state.a).toBe(0x00);
     expect(cpu.state.e).toBe(0x00);
     expect(subtract8Bit(cpu.state.a, cpu.state.e).res).toBe(0x00);
-});
-
-test("CP rr", () => {
-    const cpu = new CPUContext(new Uint8Array);
-
-    
 });
