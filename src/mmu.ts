@@ -3,6 +3,7 @@ import { request_interrupt } from "./interruptHandler";
 import IO from "./io";
 import PPU from "./ppu";
 import Rom from "./rom";
+import Timer from "./timer";
 
 
 //Has access to all devices' memory
@@ -15,6 +16,7 @@ class MMU {
     if: number;
     serial_data: number;
     serial_buf: string;
+    timer: Timer;
 
     constructor(romData: Uint8Array) {
         this.rom = new Rom(romData);
@@ -25,6 +27,7 @@ class MMU {
         this.if = 0;
         this.serial_data = 0;
         this.serial_buf = "";
+        this.timer = new Timer();
     }
 
     //Read size bytes from the given addr
@@ -54,8 +57,7 @@ class MMU {
             return this.rom.wram_read(addr);
         } else if (addr < 0xFE00) {
             //reserved echo ram
-            //console.log("Echo ram reserved, read denied...");
-            return 0xff;
+            return 0x0;
         } else if (addr < 0xFEA0) {
             //oam read todo: dma transfer stuff
             return this.ppu.oam_read(addr);
@@ -64,8 +66,9 @@ class MMU {
             return 0xff;
         } else if (addr < 0xFF80) {
             if(addr === 0xFF04) {
-                console.log("Divider reg read");
+                return this.timer.divReg;
             }
+
             if(addr == 0xFF44 || addr == 0xFF41 || addr === 0xFF42 || addr === 0xFF43 || addr === 0xFF40) {
                 return this.ppu.io_read(addr);
             }
@@ -121,7 +124,7 @@ class MMU {
                 this.if = val;
                 return;
             }
-            if(addr == 0xFF44 || addr == 0xFF41 || addr == 0xFF42 || addr == 0xFF43 || addr === 0xFF40) {
+            if(addr == 0xFF45 || addr == 0xFF44 || addr == 0xFF41 || addr == 0xFF42 || addr == 0xFF43 || addr === 0xFF40) {
                 this.ppu.io_write(addr, val);
                 return;
             }
@@ -140,7 +143,6 @@ class MMU {
                 return;
             }
             if(addr === 0xFF02 && val === 0x81) {
-                console.log("Requesting serial interrupt");
                 request_interrupt(this, 3);
                 return;
             }

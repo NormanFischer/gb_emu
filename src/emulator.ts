@@ -7,14 +7,19 @@ const CYCLES_PER_FRAME = 69905;
 class Emulator {
     private _cpu: CPUContext;
     private vramCanvasContext: CanvasRenderingContext2D;
+    private gameScreenCanvasContext: CanvasRenderingContext2D;
     private _debug: boolean;
+    private _frameData: ImageData; 
 
     changeStateCallback: Function | null = null;
 
-    constructor(romData: Uint8Array, vramCanvasContext: CanvasRenderingContext2D, debug: boolean) {
+    constructor(romData: Uint8Array, vramCanvasContext: CanvasRenderingContext2D, 
+        gameScreenCanvasContext: CanvasRenderingContext2D, debug: boolean) {
         this._cpu = new CPUContext(romData);
         this.vramCanvasContext = vramCanvasContext;
+        this.gameScreenCanvasContext = gameScreenCanvasContext;
         this._debug = debug;
+        this._frameData = this.gameScreenCanvasContext.createImageData(160, 144);
     };
 
     start_emu() {
@@ -66,6 +71,8 @@ class Emulator {
             }
         }
 
+        this._cpu.mmu.timer.update(cycles);
+
         if(this._cpu.IME) {
             //Hanlde interrupts
             interrupt_handler(this);
@@ -78,8 +85,9 @@ class Emulator {
         }
 
         //Frame rendering
-        this._cpu.mmu.ppu.ppu_step(cycles);
+        this._cpu.mmu.ppu.ppu_step(cycles, this._frameData);
         if(this._cpu.mmu.ppu.mode === 1) {
+            this.gameScreenCanvasContext.putImageData(this._frameData, 0, 0);
             request_interrupt(this._cpu.mmu, 0);
         }
         return cycles;

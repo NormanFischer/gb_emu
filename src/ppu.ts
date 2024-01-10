@@ -21,6 +21,8 @@ class PPU {
     private _vram: Uint8Array;
     private _oam: Uint8Array;
     private _lcdc: number;
+    private _lyc: number;
+    private _frameBuffer: number[];
     
     constructor() {
         //0x2000 bytes of VRAM
@@ -32,6 +34,8 @@ class PPU {
         this._scy = 0;
         this._scx = 0;
         this._lcdc = 0;
+        this._lyc = 0;
+        this._frameBuffer = new Array(92160);
     }
 
     vram_read(addr: number) {
@@ -65,6 +69,8 @@ class PPU {
             return this._scx;
         } else if (addr === 0xFF40) {
             return this._lcdc;
+        } else if (addr == 0xFF45) {
+            return this._lyc;
         }
         return 0;
     }
@@ -74,18 +80,23 @@ class PPU {
             this._currentLine = val;
         } else if(addr === 0xFF41) {
             this._mode = val & 0b11;
-
         } else if(addr === 0xFF42) {
             this._scy = val;
         } else if(addr === 0xFF43) {
             this._scx = val;
         } else if(addr === 0xFF40) {
             this._lcdc = val;
+        } else if(addr === 0xFF45) {
+            this._lyc = val;
         }
     }
 
     public get mode() {
         return this._mode;
+    }
+
+    public get frameBuffer() {
+        return this._frameBuffer;
     }
 
 
@@ -126,20 +137,74 @@ class PPU {
                         default:
                             console.error("Invalid pixel value found");
                     }
-                    ctx.fillRect(xPos, yPos, 1, 1);
+                    //ctx.fillRect(xPos, yPos, 1, 1);
                 }
             }
         }
     }
 
-    //Render the LCD game screen (160 x 144)
-    render_screen(ctx: CanvasRenderingContext2D) {
+    //Render a background scanline to the game screen (160 x 144)
+    render_background_scanline(imgData: ImageData) {
+        //Just going to render background for now (assuming our tile starts at 0x8000)
+        let tileStart = 0x8000;
+        let tileMapOffset = 0x9800;
+        //console.log("rendering line = " + this._currentLine);
 
+        //BG tile map offset
+        if((this._lcdc << 3) & 1) {
+            tileMapOffset = 0x9C00;
+        }
+
+        //Draw the pixels horizontally
+        for(let i = 0; i < 160; i++) {
+            const tileAddr = this.vram_read(tileMapOffset + (this._currentLine * 20 + (i % 8)));
+            const tileXOffset = i % 8;
+            const tileYOffset = this._currentLine % 8;
+            const tileLo = this.vram_read(tileStart + tileAddr + tileYOffset * 2);
+            const tileHi = this.vram_read(tileStart + tileAddr + tileYOffset * 2 + 1);
+
+            const lowBit = (tileLo & ( 1 << tileXOffset )) >> tileXOffset;
+            const highBit = (tileHi & ( 1 << tileXOffset )) >> tileXOffset;
+            const pixelVal = (highBit << 1) | lowBit;
+
+            switch(pixelVal) {
+                case 0b00:
+                    //Transparent
+                    imgData.data[(this._currentLine * 160 + i) * 4] = 255;
+                    imgData.data[(this._currentLine * 160 + i) * 4 + 1] = 255;
+                    imgData.data[(this._currentLine * 160 + i) * 4 + 2] = 255;
+                    imgData.data[(this._currentLine * 160 + i) * 4 + 3] = 255;
+                    break;
+                case 0b01:
+                    //Darkest green
+                    imgData.data[(this._currentLine * 160 + i) * 4] = 48;
+                    imgData.data[(this._currentLine * 160 + i) * 4 + 1] = 98;
+                    imgData.data[(this._currentLine * 160 + i) * 4 + 2] = 48;
+                    imgData.data[(this._currentLine * 160 + i) * 4 + 3] = 255;
+                    break;
+                case 0b10:
+                    //Light green
+                    imgData.data[(this._currentLine * 160 + i) * 4] = 139;
+                    imgData.data[(this._currentLine * 160 + i) * 4 + 1] = 172;
+                    imgData.data[(this._currentLine * 160 + i) * 4 + 2] = 15;
+                    imgData.data[(this._currentLine * 160 + i) * 4 + 3] = 255;
+                    break;
+                case 0b11:
+                    //Lightest green
+                    imgData.data[(this._currentLine * 160 + i) * 4] = 155;
+                    imgData.data[(this._currentLine * 160 + i) * 4 + 1] = 188;
+                    imgData.data[(this._currentLine * 160 + i) * 4 + 2] = 15;
+                    imgData.data[(this._currentLine * 160 + i) * 4 + 3] = 255;
+                    break;
+                default:
+                    console.error("Invalid pixel value found");
+            }
+        }
     }
 
     //Called in the main loop
     //cycles are the number of cycles from the last cpu execution
-    ppu_step(cycles: number) {
+    ppu_step(cycles: number, frameData: ImageData) {
         this._modeTime += cycles;
 
         //What mode are we currently in?
@@ -162,6 +227,7 @@ class PPU {
             case PPU_MODE_HBLANK:
                 if(this._modeTime >= PPU_HBLANK_TIME) {
                     this._modeTime = 0;
+                    this.render_background_scanline(frameData);
                     this._currentLine++;
 
                     if(this._currentLine === DISPLAY_LINES) {
