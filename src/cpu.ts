@@ -2792,4 +2792,4 @@ function subtract16bit(a: number, b: number): {res: number, halfCarry: bit, carr
     return {res, halfCarry, carry};
 }
 
-export {CPUContext, type CPUState, set_hl, subtract8Bit};
+export {CPUContext, type CPUState, set_hl, subtract8Bit, u8Toi8};

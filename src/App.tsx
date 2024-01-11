@@ -11,6 +11,12 @@ function App() {
   const [currentA, setA] = useState<string>("");
   const [debug, setDebug] = useState<boolean>(false);
 
+  //Joypad states
+  let startDown = 1;
+  let selectUp = 1;
+  let BLeft = 1;
+  let ARight = 1;
+
   const vramCanvas = useRef<HTMLCanvasElement | null>(null);
   const gameScreenCanvas = useRef<HTMLCanvasElement | null>(null);
 
@@ -26,6 +32,17 @@ function App() {
     setPC(pc);
   }
 
+  function handleKeyDown(e: KeyboardEvent) {
+    console.log("PRESSED: " + e.key);
+    switch(e.key) {
+      
+    }
+  }
+
+  function handleKeyUp(e: KeyboardEvent) {
+    console.log("RELEASED: " + e.key);
+  }
+
   useEffect(() => {
     if(emu !== null) {
       console.log("Starting emulator");
@@ -33,6 +50,16 @@ function App() {
       (emu as Emulator).start_emu();
     }
   }, [emu]);
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+
+    return(() => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    });
+  }, []);
   
   function retrieveCartData() {
     const fr = new FileReader();

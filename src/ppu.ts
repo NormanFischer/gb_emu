@@ -1,3 +1,4 @@
+import { u8Toi8 } from "./cpu";
 import { request_interrupt } from "./interruptHandler";
 
 const PPU_OAM_ACCESS_TIME = 80;
@@ -116,7 +117,6 @@ class PPU {
                     //Silly
                     const xPos = tile % 16 * 8 - bit + 7;
                     const yPos = Math.floor(tile / 16) * 8 + tileWord;
-                    //console.log("X = " + xPos + " Y = " + yPos);
                     switch(pixelVal) {
                         case 0b00:
                             //Transparent
@@ -143,30 +143,57 @@ class PPU {
         }
     }
 
+    //Address into the tilemap and return the tile number for a given tile
+    //pixelX and pixelY are relative to scx and scy
+    get_tile_num_from_pixel(tileMapBase: number, pixelX: number, pixelY: number): number {
+        //TODO: Incorporate scrolling
+        const tileX = Math.floor(pixelX/8);
+        const tileY = Math.floor(pixelY/8);
+        const tileNum = this.vram_read(tileMapBase + (32 * tileY) + tileX);
+        return tileNum;
+    }
+
+    //Given relative coordinates and a base tile address in vram, return the pixel value
+    get_pixel_val_from_tile(x: number, y: number, tileAddr: number): number {
+        //Get our current line (y)
+        if(tileAddr % 16 !== 0) {
+            console.error("Invalid tile base: " + tileAddr.toString(16));
+        }
+        //console.log("Rendering x = " + x + " y = " + y + " from tilenum: " + tileAddr.toString(16));
+        const lowByte = this.vram_read(tileAddr + y * 2);
+        const highByte = this.vram_read(tileAddr + y * 2 + 1);
+        const lowBit = (lowByte & ( 1 << 7 - x )) >> 7 - x;
+        const highBit = (highByte & ( 1 << 7 - x )) >> 7 - x;
+        const pixelVal = (highBit << 1) | lowBit;
+        return pixelVal;
+    }
+
     //Render a background scanline to the game screen (160 x 144)
     render_background_scanline(imgData: ImageData) {
-        //Just going to render background for now (assuming our tile starts at 0x8000)
-        let tileStart = 0x8000;
+        //Just going to render background for now
+        let tileStart = 0x9000;
         let tileMapOffset = 0x9800;
-        //console.log("rendering line = " + this._currentLine);
 
         //BG tile map offset
-        if((this._lcdc << 3) & 1) {
+        if(this._lcdc & (1 << 3)) {
             tileMapOffset = 0x9C00;
+        }
+
+        //Addressing mode
+        if(this._lcdc & (1 << 4)) {
+            console.log("Using 8000 addressing");
+            tileStart = 0x8000;
         }
 
         //Draw the pixels horizontally
         for(let i = 0; i < 160; i++) {
-            const tileAddr = this.vram_read(tileMapOffset + (this._currentLine * 20 + (i % 8)));
-            const tileXOffset = i % 8;
-            const tileYOffset = this._currentLine % 8;
-            const tileLo = this.vram_read(tileStart + tileAddr + tileYOffset * 2);
-            const tileHi = this.vram_read(tileStart + tileAddr + tileYOffset * 2 + 1);
-
-            const lowBit = (tileLo & ( 1 << tileXOffset )) >> tileXOffset;
-            const highBit = (tileHi & ( 1 << tileXOffset )) >> tileXOffset;
-            const pixelVal = (highBit << 1) | lowBit;
-
+            //Get tile base from vram
+            let tileNum = this.get_tile_num_from_pixel(tileMapOffset, i, this._currentLine);
+            if(tileStart === 0x9000) {
+                tileNum = u8Toi8(tileNum);
+            }
+            //TODO: Change this
+            const pixelVal = this.get_pixel_val_from_tile(i % 8, this._currentLine % 8, tileStart + (tileNum * 0x10));
             switch(pixelVal) {
                 case 0b00:
                     //Transparent
