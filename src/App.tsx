@@ -1,8 +1,6 @@
 import { ChangeEvent, useEffect, useRef, useState } from 'react'
 import './App.css'
-import Rom from './rom';
 import Emulator from './emulator';
-import ReactDOM from 'react-dom';
 
 function App() {
   const [currentRom, setRom] = useState<Blob| null>(null);
@@ -10,12 +8,6 @@ function App() {
   const [currentPC, setPC] = useState<string>("");
   const [currentA, setA] = useState<string>("");
   const [debug, setDebug] = useState<boolean>(false);
-
-  //Joypad states
-  let startDown = 1;
-  let selectUp = 1;
-  let BLeft = 1;
-  let ARight = 1;
 
   const vramCanvas = useRef<HTMLCanvasElement | null>(null);
   const gameScreenCanvas = useRef<HTMLCanvasElement | null>(null);
@@ -33,14 +25,87 @@ function App() {
   }
 
   function handleKeyDown(e: KeyboardEvent) {
-    console.log("PRESSED: " + e.key);
-    switch(e.key) {
-      
+    if(emu != null) {
+      console.log("Key down");
+      switch(e.key) {
+        //Start
+        case " ":
+          emu.cpu.mmu.joypad_set(3, true);
+          break;
+        //Down
+        case "ArrowDown":
+          emu.cpu.mmu.joypad_set(3, false);
+          break;
+        //Select
+        case "Enter":
+          emu.cpu.mmu.joypad_set(2, true);
+          break;
+        //Up
+        case "ArrowUp":
+          emu.cpu.mmu.joypad_set(2, false);
+          break;
+        //B
+        case "z":
+          emu.cpu.mmu.joypad_set(1, true);
+          break;
+        //Left
+        case "ArrowLeft":
+          emu.cpu.mmu.joypad_set(1, false);
+          break;
+        //A
+        case "x":
+          emu.cpu.mmu.joypad_set(0, true);
+          break;
+        //Right
+        case "ArrowRight":
+          emu.cpu.mmu.joypad_set(0, false);
+          break;
+        default:
+          break;
+      }
     }
+
   }
 
   function handleKeyUp(e: KeyboardEvent) {
-    console.log("RELEASED: " + e.key);
+    if(emu) {
+      switch(e.key) {
+        //Start
+        case " ":
+          emu.cpu.mmu.joypad_unset(3, true);
+          break;
+        //Down
+        case "ArrowDown":
+          emu.cpu.mmu.joypad_unset(3, false);
+          break;
+        //Select
+        case "Enter":
+          emu.cpu.mmu.joypad_unset(2, true);
+          break;
+        //Up
+        case "ArrowUp":
+          emu.cpu.mmu.joypad_unset(2, false);
+          break;
+        //B
+        case "z":
+          emu.cpu.mmu.joypad_unset(1, true);
+          break;
+        //Left
+        case "ArrowLeft":
+          emu.cpu.mmu.joypad_unset(1, false);
+          break;
+        //A
+        case "x":
+          emu.cpu.mmu.joypad_unset(0, true);
+          break;
+        //Right
+        case "ArrowRight":
+          emu.cpu.mmu.joypad_unset(0, false);
+          break;
+        default:
+          break;
+      }
+    }
   }
 
   useEffect(() => {
@@ -49,9 +114,7 @@ function App() {
       emu.changeStateCallback = updateCPUStateDisplay;
       (emu as Emulator).start_emu();
     }
-  }, [emu]);
 
-  useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
 
@@ -59,7 +122,7 @@ function App() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     });
-  }, []);
+  }, [emu]);
   
   function retrieveCartData() {
     const fr = new FileReader();

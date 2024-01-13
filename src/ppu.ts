@@ -181,7 +181,6 @@ class PPU {
 
         //Addressing mode
         if(this._lcdc & (1 << 4)) {
-            console.log("Using 8000 addressing");
             tileStart = 0x8000;
         }
 
@@ -229,6 +228,58 @@ class PPU {
         }
     }
 
+    render_oam(imgData: ImageData) {
+        for(let i = 0; i < 40; i++) {
+            //Only going to do 8x8 mode for now
+            const yPos = this.oam_read(0xFE00 + 4 * i);
+            const xPos = this.oam_read(0xFE00 + 4 * i + 1);
+            const tileIdx = this.oam_read(0xFE00 + 4 * i + 2);
+            const attr = this.oam_read(0xFE00 + 4 * i +  3);
+
+            if(this._currentLine - yPos + 16 < 8 && this._currentLine - yPos + 16 > 0) {
+                //Push pixels starting from x value
+                for(let i = 0; i < 8; i++) {
+                    const tileAddr = 0x8000 + (tileIdx * 0x10);
+                    const xPixelPos = (xPos + i) % 8;
+                    const yPixelPos = this._currentLine - yPos + 15;
+                    const pixelData = this.get_pixel_val_from_tile(xPixelPos, yPixelPos, tileAddr);
+                    switch(pixelData) {
+                        case 0b00:
+                            //Transparent
+                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4] = 255;
+                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 1] = 255;
+                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 2] = 255;
+                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 3] = 255;
+                            break;
+                        case 0b01:
+                            //Darkest green
+                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4] = 48;
+                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 1] = 98;
+                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 2] = 48;
+                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 3] = 255;
+                            break;
+                        case 0b10:
+                            //Light green
+                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4] = 139;
+                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 1] = 172;
+                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 2] = 15;
+                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 3] = 255;
+                            break;
+                        case 0b11:
+                            //Lightest green
+                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4] = 155;
+                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 1] = 188;
+                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 2] = 15;
+                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 3] = 255;
+                            break;
+                        default:
+                            console.error("Invalid pixel value found");
+                    }
+                }
+            }
+        }
+    }
+
     //Called in the main loop
     //cycles are the number of cycles from the last cpu execution
     ppu_step(cycles: number, frameData: ImageData) {
@@ -254,7 +305,9 @@ class PPU {
             case PPU_MODE_HBLANK:
                 if(this._modeTime >= PPU_HBLANK_TIME) {
                     this._modeTime = 0;
+                    //Render scanline here
                     this.render_background_scanline(frameData);
+                    this.render_oam(frameData);
                     this._currentLine++;
 
                     if(this._currentLine === DISPLAY_LINES) {

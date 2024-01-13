@@ -18,6 +18,11 @@ class MMU {
     serial_buf: string;
     timer: Timer;
 
+    //Joypad controls
+    buttonNibble: number;
+    dpadNibble: number;
+    buttonSelect: boolean;
+
     constructor(romData: Uint8Array) {
         this.rom = new Rom(romData);
         this.ppu = new PPU();
@@ -28,6 +33,9 @@ class MMU {
         this.serial_data = 0;
         this.serial_buf = "";
         this.timer = new Timer();
+        this.buttonNibble = 0b1111;
+        this.dpadNibble = 0b1111;
+        this.buttonSelect = false;
     }
 
     //Read size bytes from the given addr
@@ -65,10 +73,16 @@ class MMU {
             //console.log("Reserved unusable read denied...");
             return 0xff;
         } else if (addr < 0xFF80) {
+            if(addr === 0xFF00) {
+                if(this.buttonSelect) {
+                    return 0b100000 | this.buttonNibble;
+                } else {
+                    return 0b010000 | this.dpadNibble;
+                }
+            }
             if(addr === 0xFF04) {
                 return this.timer.divReg;
             }
-
             if(addr == 0xFF44 || addr == 0xFF41 || addr === 0xFF42 || addr === 0xFF43 || addr === 0xFF40) {
                 return this.ppu.io_read(addr);
             }
@@ -117,6 +131,16 @@ class MMU {
         } else if (addr < 0xFF00) {
             console.log("Reserved unusable write denied...");
         } else if (addr < 0xFF80) {
+            if(addr === 0xFF00) {
+                //Can only write to upper nibble for joypad
+                if((val & 0b100000) >> 5 === 1) {
+                    this.buttonSelect = false;
+                } else if((val & 0b010000) >> 4 === 1) {
+                    this.buttonSelect = true;
+                } else {
+                    console.error("Bad case");
+                }
+            }
             if(addr === 0xFF04) {
                 console.log("Divider reg write");
             }
@@ -160,6 +184,34 @@ class MMU {
         const addr = val << 8;
         for(let i = 0; i < 0xA0; i++) {
             this.write_byte(0xFE00 + i, this.read_byte(addr + i));
+        }
+    }
+    
+    //User pressed a button
+    joypad_set(bit: number, button: boolean) {
+        //Buttons
+        if(button) {
+            this.buttonNibble &= ~(1 << bit);
+            //console.log("Set button");
+            if(this.buttonSelect) {
+                request_interrupt(this, 4);
+            }
+        } else {
+            //D-pad
+            //console.log("Setting dpad");
+            this.dpadNibble &= ~(1 << bit);
+            if(!this.buttonSelect) {
+                request_interrupt(this, 4);
+            }
+        }
+    }
+
+    //User released a button
+    joypad_unset(bit: number, button: boolean) {
+        if(button) {
+            this.buttonNibble |= (1 << bit);
+        } else {
+            this.dpadNibble |= (1 << bit);
         }
     }
 
