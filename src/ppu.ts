@@ -85,7 +85,7 @@ class PPU {
         } else if(addr === 0xFF42) {
             this._scy = val;
         } else if(addr === 0xFF43) {
-            console.log("scx = " + val);
+            //console.log("scx = " + val);
             this._scx = val;
         } else if(addr === 0xFF40) {
             this._lcdc = val;

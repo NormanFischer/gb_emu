@@ -73,7 +73,7 @@ class Timer {
         if(this._divCount >= 255) {
             this._divCount &= 255;
             if(++this._divReg >= 255) {
-                this._divReg &= 255;
+                this._divReg = 0;
             }
         }
 
@@ -97,13 +97,13 @@ class Timer {
                 default:
                     throw new Error("Error: Invalid timing mode");
             }
-            if(this.timeCount > timeLimit) {
+            while(this.timeCount >= timeLimit) {
                 this._tima++;
                 if(this._tima >= 255) {
                     request_interrupt(mmu, 2);
                     this._tima = this._tma;
                 }
-                this._timeCount = 0;
+                this._timeCount -= timeLimit;
             }
         }
     }

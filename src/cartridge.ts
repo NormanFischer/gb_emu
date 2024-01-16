@@ -64,6 +64,10 @@ abstract class Cartridge {
 
     public readBankB(addr: number): number {
         const offset = addr - 0x4000;
+        if(offset > 0x3FFF) {
+            console.error("Bank B Read error");
+        }
+        //console.log("Read bank b: " + (this._bankB + offset).toString(16) + " addr = " + addr.toString(16));
         return this.romBuf[this.bankB + offset];
     }
 
@@ -73,13 +77,15 @@ abstract class Cartridge {
     }
 
     public externRead(addr: number): number {
+        console.log("Extern read");
         const offset = addr - 0xA000;
-        return this.externRam[this.bankExtern][offset];
+        return (this.externRam[this.bankExtern])[offset];
     }
 
     public externWrite(addr: number, val: number) {
+        console.log("extern write");
         const offset = addr - 0xA000;
-        this.externRam[this.bankExtern][offset] = val;
+        (this.externRam[this.bankExtern])[offset] = val;
     }
 
     public wramRead(addr: number): number {

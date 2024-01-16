@@ -23,6 +23,7 @@ class Emulator {
     };
 
     start_emu() {
+        console.log("ROM TYPE: " + this._cpu.mmu.rom._cartridgeType);
         this._cpu.start_cpu();
         this.emu_step();
     }
@@ -55,7 +56,8 @@ class Emulator {
         if(!this._cpu.isHalted) {
             const opcode = this.fetch_opcode();
             if(!this.cpu.instructions[opcode]) {
-                console.error("Invalid opcode found: " + opcode.toString(16));
+                console.error("Invalid opcode found: " + opcode.toString(16) + " pc = " + this._cpu.pc.toString(16));
+                console.error("Rom bank = " + this._cpu.mmu.rom.bankB.toString(16));
                 this._cpu.isRunning = false;
                 return -1;
             }
