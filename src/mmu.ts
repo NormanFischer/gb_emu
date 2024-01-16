@@ -1,6 +1,8 @@
+import Cartridge from "./cartridge";
 import HRAM from "./hram";
 import { request_interrupt } from "./interruptHandler";
 import IO from "./io";
+import MBC1 from "./mbc1";
 import PPU from "./ppu";
 import Rom from "./rom";
 import Timer from "./timer";
@@ -8,7 +10,7 @@ import Timer from "./timer";
 
 //Has access to all devices' memory
 class MMU {
-    rom: Rom;
+    rom: Cartridge;
     ppu: PPU;
     io: IO;
     hram: HRAM;
@@ -24,7 +26,21 @@ class MMU {
     buttonSelect: boolean;
 
     constructor(romData: Uint8Array) {
-        this.rom = new Rom(romData);
+        console.log("Rom type = " + romData[0x147].toString(16));
+        switch(romData[0x147]) {
+            case 0x00:
+            case 0x08:
+            case 0x09:
+                this.rom = new Rom(romData);
+                break;
+            case 0x01:
+            case 0x02:
+            case 0x03:
+                this.rom = new MBC1(romData);
+                break;
+            default:
+                throw new Error("Invalid rom type found: " + romData[0x147].toString(16));
+        }
         this.ppu = new PPU();
         this.io = new IO();
         this.hram = new HRAM();
@@ -38,31 +54,22 @@ class MMU {
         this.buttonSelect = false;
     }
 
-    //Read size bytes from the given addr
-    read(addr: number, size: number): Uint8Array {
-        if(addr < 0x8000) {
-            //Read from rom
-            return this.rom.romBuf.slice(addr, addr + size);
-        } else {
-            console.error("mmu read device unimplemented");
-            return new Uint8Array;
-        }
-    }
-
     read_byte(addr: number): number {
-        if (addr < 0x8000) {
+        if (addr < 0x4000) {
             //rom data
-            return this.rom.romBuf[addr];
+            return this.rom.readBankA(addr);
+        } else if(addr < 0x8000) {
+            return this.rom.readBankB(addr);
         } else if (addr < 0xA000) {
             //vram
             const val = this.ppu.vram_read(addr);
             return val;
         } else if (addr < 0xC000) {
             //cart ram
-            return this.rom.extern_read(addr);
+            return this.rom.externRead(addr);
         } else if (addr < 0xE000) {
             //wram
-            return this.rom.wram_read(addr);
+            return this.rom.wramRead(addr);
         } else if (addr < 0xFE00) {
             //reserved echo ram
             return 0x0;
@@ -80,9 +87,11 @@ class MMU {
                     return 0b010000 | this.dpadNibble;
                 }
             }
-            if(addr === 0xFF04) {
-                return this.timer.divReg;
+
+            if(addr >= 0xFF04 && addr <= 0xFF07) {
+                return this.timer.timer_read(addr);
             }
+
             if(addr == 0xFF44 || addr == 0xFF41 || addr === 0xFF42 || addr === 0xFF43 || addr === 0xFF40) {
                 return this.ppu.io_read(addr);
             }
@@ -108,19 +117,21 @@ class MMU {
     }
 
     write_byte(addr: number, val: number) {
-        if (addr < 0x8000) {
+        if (addr < 0x4000) {
             //rom data
-            console.log("not going to write to rom");
+            this.rom.writeBankA(addr, val);
+        } else if (addr < 0x8000) {
+            this.rom.writeBankB(addr, val);
         } else if (addr < 0xA000) {
             //vram
             this.ppu.vram_write(addr, val);
         } else if (addr < 0xC000) {
             //cart ram
-            this.rom.extern_write(addr, val);
+            this.rom.externWrite(addr, val);
             return;
         } else if (addr < 0xE000) {
             //wram
-            this.rom.wram_write(addr, val);
+            this.rom.wramWrite(addr, val);
             return;
         } else if (addr < 0xFE00) {
             //reserved echo ram
@@ -141,9 +152,11 @@ class MMU {
                     console.error("Bad case");
                 }
             }
-            if(addr === 0xFF04) {
-                console.log("Divider reg write");
+
+            if(addr >= 0xFF04 && addr <= 0xFF07) {
+                this.timer.timer_write(addr, val);
             }
+
             if(addr == 0xFF0F) {
                 this.if = val;
                 return;

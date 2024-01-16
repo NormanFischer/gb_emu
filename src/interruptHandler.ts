@@ -39,13 +39,11 @@ function interrupt_handler(emu: Emulator) {
         push_interrupt(emu, ADDR_TIMER);
         return;
     } else if((IE & (1 << I_SERIAL)) && (IF & (1 << I_SERIAL))) {
-        //console.log("Serial interrupt being handled");
         emu.cpu.IME = false;
         emu.cpu.mmu.write_byte(0xFF0F, IF & ~(1 << I_SERIAL));
         push_interrupt(emu, ADDR_SERIAL);
         return;
     } else if((IE & (1 << I_JOYPAD)) && (IF & (1 << I_JOYPAD))) {
-        console.log("Handling joypad interrupt");
         emu.cpu.IME = false;
         emu.cpu.mmu.write_byte(0xFF0F, IF & ~(1 << I_JOYPAD));
         push_interrupt(emu, ADDR_JOYPAD);

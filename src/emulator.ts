@@ -65,13 +65,13 @@ class Emulator {
         } else {
             cycles = 1;
             //Wait for IF register to be marked
-            if(this._cpu.mmu.read_byte(0xFF0F)) {
+            if(this._cpu.mmu.read_byte(0xFF0F) & this._cpu.mmu.read_byte(0xFFFF)) {
                 this._cpu.isHalted = false;
                 this._cpu.IME = true;
             }
         }
 
-        this._cpu.mmu.timer.update(cycles);
+        this._cpu.mmu.timer.update(this._cpu.mmu, cycles);
 
         if(this._cpu.IME) {
             //Hanlde interrupts
