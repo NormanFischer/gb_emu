@@ -64,7 +64,6 @@ abstract class Cartridge {
 
     public readBankB(addr: number): number {
         const offset = addr - 0x4000;
-        const val = this.romBuf[this.bankB + offset];
         return this.romBuf[this.bankB + offset];
     }
 

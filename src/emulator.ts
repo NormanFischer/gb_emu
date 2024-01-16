@@ -67,7 +67,6 @@ class Emulator {
             //Wait for IF register to be marked
             if(this._cpu.mmu.read_byte(0xFF0F) & this._cpu.mmu.read_byte(0xFFFF)) {
                 this._cpu.isHalted = false;
-                this._cpu.IME = true;
             }
         }
 
@@ -85,7 +84,7 @@ class Emulator {
         }
 
         //Frame rendering
-        this._cpu.mmu.ppu.ppu_step(cycles, this._frameData);
+        this._cpu.mmu.ppu.ppu_step(this._cpu.mmu, cycles, this._frameData);
         if(this._cpu.mmu.ppu.mode === 1) {
             this.gameScreenCanvasContext.putImageData(this._frameData, 0, 0);
             request_interrupt(this._cpu.mmu, 0);

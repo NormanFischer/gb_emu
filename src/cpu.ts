@@ -1708,7 +1708,6 @@ class CPUContext {
     //0x76 : HALT
     private HALT(): number {
         this._isHalted = true;
-        this._IME = false;
         return 4;
     }
 

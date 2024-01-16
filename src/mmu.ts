@@ -152,7 +152,7 @@ class MMU {
                     console.error("Bad case");
                 }
             }
-
+            
             if(addr >= 0xFF04 && addr <= 0xFF07) {
                 this.timer.timer_write(addr, val);
             }

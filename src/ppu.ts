@@ -1,5 +1,6 @@
 import { u8Toi8 } from "./cpu";
 import { request_interrupt } from "./interruptHandler";
+import MMU from "./mmu";
 
 const PPU_OAM_ACCESS_TIME = 80;
 const PPU_VRAM_ACCESS_TIME = 172;
@@ -14,7 +15,7 @@ const PPU_MODE_VBLANK = 1;
 const DISPLAY_LINES = 143;
 
 class PPU {
-    private _mode: number;
+    private _lcdStat: number;
     private _modeTime: number;
     private _currentLine: number;
     private _scy: number;
@@ -26,10 +27,10 @@ class PPU {
     private _frameBuffer: number[];
     
     constructor() {
+        this._lcdStat = 0;
         //0x2000 bytes of VRAM
         this._vram = new Uint8Array(0x2000);
         this._oam = new Uint8Array(0xA0);
-        this._mode = 0;
         this._modeTime = 0;
         this._currentLine = 0;
         this._scy = 0;
@@ -63,7 +64,7 @@ class PPU {
         if(addr === 0xFF44) {
             return this._currentLine;
         } else if (addr === 0xFF41) {
-            return this._mode;
+            return this._lcdStat;
         } else if (addr === 0xFF42) {
             return this._scy;
         } else if (addr === 0xFF43) {
@@ -80,10 +81,11 @@ class PPU {
         if(addr === 0xFF44) {
             this._currentLine = val;
         } else if(addr === 0xFF41) {
-            this._mode = val & 0b11;
+            this._lcdStat = val;
         } else if(addr === 0xFF42) {
             this._scy = val;
         } else if(addr === 0xFF43) {
+            console.log("scx = " + val);
             this._scx = val;
         } else if(addr === 0xFF40) {
             this._lcdc = val;
@@ -93,13 +95,16 @@ class PPU {
     }
 
     public get mode() {
-        return this._mode;
+        return this._lcdStat & 0b11;
+    }
+
+    public set mode(mode: number) {
+        this._lcdStat = (this._lcdStat & 0b11111100) | mode;
     }
 
     public get frameBuffer() {
         return this._frameBuffer;
     }
-
 
     //Render to the canvas from our vram buffer
     put_vram_image(ctx: CanvasRenderingContext2D) {
@@ -280,25 +285,50 @@ class PPU {
         }
     }
 
+    //Check for lyc = ly condition and request an interrupt condition holds
+    private check_lyc(mmu: MMU) {
+        //Set bit 2 condition
+        if(this._currentLine === this._lyc) {
+            this._lcdStat = this._lcdStat |= (1 << 2);
+            if(this._lcdStat & 0b1000000) {
+                request_interrupt(mmu, 1);
+            }
+        } else {
+            this._lcdStat = this._lcdStat & ~(1 << 2);
+        }
+    }
+
+    private checkMode(mmu: MMU, newMode: number) {
+        this._lcdStat = (this._lcdStat & 0b11111100) | newMode;
+        if(this._lcdStat & 0b1000 && newMode === 0) {
+            request_interrupt(mmu, 1);
+        } else if(this._lcdStat & 0b10000 && newMode === 1) {
+            request_interrupt(mmu, 1);
+        } else if(this._lcdStat & 0b100000 && newMode === 2) {
+            request_interrupt(mmu, 1);
+        }
+    }
+
     //Called in the main loop
     //cycles are the number of cycles from the last cpu execution
-    ppu_step(cycles: number, frameData: ImageData) {
+    ppu_step(mmu: MMU, cycles: number, frameData: ImageData) {
         this._modeTime += cycles;
 
         //What mode are we currently in?
-        switch(this._mode) {
+        switch(this.mode) {
             //OAM
             case PPU_MODE_OAM:
                 if(this._modeTime >= PPU_OAM_ACCESS_TIME) {
                     this._modeTime = 0;
-                    this._mode = PPU_MODE_VRAM;
+                    this.mode = PPU_MODE_VRAM;
                 }
                 break;
             //VRAM
             case PPU_MODE_VRAM:
                 if(this._modeTime >= PPU_VRAM_ACCESS_TIME) {
                     this._modeTime = 0;
-                    this._mode = PPU_MODE_HBLANK;
+                    this.mode = PPU_MODE_HBLANK;
+                    this.checkMode(mmu, this.mode);
                 }
                 break;
             //HBLANK
@@ -309,12 +339,15 @@ class PPU {
                     this.render_background_scanline(frameData);
                     this.render_oam(frameData);
                     this._currentLine++;
+                    this.check_lyc(mmu);
 
                     if(this._currentLine === DISPLAY_LINES) {
                         //Vblank time!
-                        this._mode = PPU_MODE_VBLANK;
+                        this.mode = PPU_MODE_VBLANK;
+                        this.checkMode(mmu, this.mode);
                     } else {
-                        this._mode = PPU_MODE_OAM;
+                        this.mode = PPU_MODE_OAM;
+                        this.checkMode(mmu, this.mode);
                     }
                 }
                 break;
@@ -323,15 +356,19 @@ class PPU {
                 if(this._modeTime >= PPU_VBLANK_TIME) {
                     this._modeTime = 0;
                     this._currentLine++;
+                    this.check_lyc(mmu);
 
                     if(this._currentLine > DISPLAY_LINES + 10) {
-                        this._mode = PPU_MODE_OAM;
+                        this.mode = PPU_MODE_OAM;
+                        this.checkMode(mmu, this.mode);
+
                         this._currentLine = 0;
+                        this.check_lyc(mmu);
                     }
                 }
                 break;
             default:
-                console.error("Invalid ppu mode: " + this._mode);
+                console.error("Invalid ppu mode: " + this.mode);
                 return;
         }
     }
