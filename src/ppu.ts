@@ -105,6 +105,66 @@ class PPU {
         return this._frameBuffer;
     }
 
+    put_background_image(imgData: ImageData) {
+        //Just going to render background for now
+        let tileStart = 0x9000;
+        let tileMapOffset = 0x9800;
+
+        //BG tile map offset
+        if(this._lcdc & (1 << 3)) {
+            tileMapOffset = 0x9C00;
+        }
+
+        //Addressing mode
+        if(this._lcdc & (1 << 4)) {
+            tileStart = 0x8000;
+        }
+
+        //Draw the pixels horizontally
+        for(let i = 0; i < 256; i++) {
+            for(let j = 0; j < 256; j++) {
+                //Get tile base from vram
+                let tileNum = this.get_tile_num_from_pixel(tileMapOffset, i, j);
+                if(tileStart === 0x9000) {
+                    tileNum = u8Toi8(tileNum);
+                }
+                const pixelVal = this.get_pixel_val_from_tile(i % 8, j % 8, tileStart + (tileNum * 0x10));
+                switch(pixelVal) {
+                    case 0b00:
+                        //Transparent
+                        imgData.data[(j * 256 + i) * 4] = 255;
+                        imgData.data[(j * 256 + i) * 4 + 1] = 255;
+                        imgData.data[(j * 256 + i) * 4 + 2] = 255;
+                        imgData.data[(j * 256 + i) * 4 + 3] = 255;
+                        break;
+                    case 0b01:
+                        //Darkest green
+                        imgData.data[(j * 256 + i) * 4] = 48;
+                        imgData.data[(j * 256 + i) * 4 + 1] = 98;
+                        imgData.data[(j * 256 + i) * 4 + 2] = 48;
+                        imgData.data[(j * 256 + i) * 4 + 3] = 255;
+                        break;
+                    case 0b10:
+                        //Light green
+                        imgData.data[(j * 256 + i) * 4] = 139;
+                        imgData.data[(j * 256 + i) * 4 + 1] = 172;
+                        imgData.data[(j * 256 + i) * 4 + 2] = 15;
+                        imgData.data[(j * 256 + i) * 4 + 3] = 255;
+                        break;
+                    case 0b11:
+                        //Lightest green
+                        imgData.data[(j * 256 + i) * 4] = 155;
+                        imgData.data[(j * 256 + i) * 4 + 1] = 188;
+                        imgData.data[(j * 256 + i) * 4 + 2] = 15;
+                        imgData.data[(j * 256 + i) * 4 + 3] = 255;
+                        break;
+                    default:
+                        console.error("Invalid pixel value found");
+                }
+            }
+        }
+    }
+
     //Render to the canvas from our vram buffer
     put_vram_image(ctx: CanvasRenderingContext2D) {
         //Each tile
@@ -148,23 +208,15 @@ class PPU {
     }
 
     //Address into the tilemap and return the tile number for a given pixel
-    //pixelX and pixelY are relative to scx and scy
     get_tile_num_from_pixel(tileMapBase: number, pixelX: number, pixelY: number): number {
-        //TODO: Incorporate scrolling
-        const tileX = Math.floor((pixelX + this._scx)/8);
-        const tileY = Math.floor(pixelY/8);
+        const tileX = Math.floor((pixelX)/8);
+        const tileY = Math.floor((pixelY)/8);
         const tileNum = this.vram_read(tileMapBase + (32 * tileY) + tileX);
         return tileNum;
     }
 
     //Given relative coordinates and a base tile address in vram, return the pixel value
     get_pixel_val_from_tile(x: number, y: number, tileAddr: number): number {
-        if(tileAddr % 16 !== 0) {
-            console.error("Invalid tile base: " + tileAddr.toString(16));
-        }
-        if(x > 7 || y > 7) {
-            console.error("Invalid pixel pos X = " + x + " Y = " + y);
-        }
         //console.log("Rendering x = " + x + " y = " + y + " from tilenum: " + tileAddr.toString(16));
         const lowByte = this.vram_read(tileAddr + y * 2);
         const highByte = this.vram_read(tileAddr + y * 2 + 1);
@@ -193,11 +245,11 @@ class PPU {
         //Draw the pixels horizontally
         for(let i = 0; i < 160; i++) {
             //Get tile base from vram
-            let tileNum = this.get_tile_num_from_pixel(tileMapOffset, i, this._currentLine);
+            let tileNum = this.get_tile_num_from_pixel(tileMapOffset, (this._scx + i) & 0xFF, (this._scy + this._currentLine) & 0xFF);
             if(tileStart === 0x9000) {
                 tileNum = u8Toi8(tileNum);
             }
-            const pixelVal = this.get_pixel_val_from_tile((i + this._scx) % 8, this._currentLine % 8, tileStart + (tileNum * 0x10));
+            const pixelVal = this.get_pixel_val_from_tile(((this._scx + i) & 0xFF) % 8, ((this._scy + this._currentLine) & 0xFF) % 8, tileStart + (tileNum * 0x10));
             switch(pixelVal) {
                 case 0b00:
                     //Transparent
@@ -316,7 +368,7 @@ class PPU {
 
     //Called in the main loop
     //cycles are the number of cycles from the last cpu execution
-    ppu_step(mmu: MMU, cycles: number, frameData: ImageData) {
+    ppu_step(mmu: MMU, cycles: number, frameData: ImageData, backgroundData: ImageData) {
         this._modeTime += cycles;
 
         //What mode are we currently in?
@@ -343,6 +395,7 @@ class PPU {
                     //Render scanline here
                     this.render_background_scanline(frameData);
                     this.render_oam(frameData);
+                    //this.put_background_image(backgroundData);
                     this._currentLine++;
                     this.check_lyc(mmu);
 

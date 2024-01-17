@@ -11,6 +11,7 @@ function App() {
 
   const vramCanvas = useRef<HTMLCanvasElement | null>(null);
   const gameScreenCanvas = useRef<HTMLCanvasElement | null>(null);
+  const backgroundCanvas = useRef<HTMLCanvasElement | null>(null);
 
   function handleSelectFile(e: ChangeEvent<HTMLInputElement>) {
     if(e.target.files && e.target.files?.length > 0) {
@@ -130,8 +131,9 @@ function App() {
       const u8Arr = new Uint8Array(ev.target?.result as ArrayBuffer);
       setEmu(new Emulator(u8Arr, 
         (vramCanvas.current as HTMLCanvasElement).getContext('2d') as CanvasRenderingContext2D, 
-        (gameScreenCanvas.current as HTMLCanvasElement).getContext('2d') as CanvasRenderingContext2D
-        ,debug));
+        (gameScreenCanvas.current as HTMLCanvasElement).getContext('2d') as CanvasRenderingContext2D,
+        (backgroundCanvas.current as HTMLCanvasElement).getContext('2d') as CanvasRenderingContext2D,
+        debug));
     };
     fr.readAsArrayBuffer(currentRom as Blob);
   }
@@ -155,6 +157,7 @@ function App() {
       }
       <canvas id="vramMap" ref={vramCanvas} width="128" height="192" style={{border: "1px solid #d3d3d3"}}></canvas>
       <canvas id="gameScreen" ref={gameScreenCanvas} width="160" height = "144" style={{border: "1px solid #d3d3d3"}}></canvas>
+      <canvas id="background" ref={backgroundCanvas} width="256" height = "256" style={{border: "1px solid #d3d3d3"}}></canvas>
       <input type="file" accept=".gb" onChange={handleSelectFile}/>
       {
         currentRom &&
