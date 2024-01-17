@@ -96,7 +96,9 @@ class Emulator {
         }
         this._cpu.mmu.timer.update(this._cpu.mmu, cycles);
         //Frame rendering
-        this._cpu.mmu.ppu.ppu_step(this._cpu.mmu, cycles, this._frameData, this._backgroundData);
+        if(this._cpu.mmu.ppu.enabled) {
+            this._cpu.mmu.ppu.ppu_step(this._cpu.mmu, cycles, this._frameData, this._backgroundData);
+        }
         if(this._cpu.mmu.ppu.mode === 1) {
             this.gameScreenCanvasContext.putImageData(this._frameData, 0, 0);
             //this.backgroundCanvasContext.putImageData(this._backgroundData, 0, 0);

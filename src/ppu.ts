@@ -15,6 +15,7 @@ const PPU_MODE_VBLANK = 1;
 const DISPLAY_LINES = 143;
 
 class PPU {
+    private _enabled: boolean;
     private _lcdStat: number;
     private _modeTime: number;
     private _currentLine: number;
@@ -27,6 +28,7 @@ class PPU {
     private _frameBuffer: number[];
     
     constructor() {
+        this._enabled = true;
         this._lcdStat = 0;
         //0x2000 bytes of VRAM
         this._vram = new Uint8Array(0x2000);
@@ -88,6 +90,15 @@ class PPU {
             this._scx = val;
         } else if(addr === 0xFF40) {
             this._lcdc = val;
+            if(!(this._lcdc & 0b10000000)) {
+                console.log("LCD/PPU OFF");
+                this._enabled = false;
+                this._modeTime = 0;
+                this._currentLine = 0;
+                this.mode = 0;
+            } else {
+                this._enabled = true;
+            }
         } else if(addr === 0xFF45) {
             this._lyc = val;
         }
@@ -99,6 +110,10 @@ class PPU {
 
     public set mode(mode: number) {
         this._lcdStat = (this._lcdStat & 0b11111100) | mode;
+    }
+
+    public get enabled(): boolean {
+        return this._enabled;
     }
 
     public get frameBuffer() {

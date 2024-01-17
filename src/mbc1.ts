@@ -4,8 +4,12 @@ class MBC1 extends Cartridge {
     ramEnabled: boolean
     bankingMode: boolean;
 
+    ramsize :{ [key: number]: number } = {0x00: 0, 0x02: 1, 0x03: 4, 0x04: 16, 0x05: 8};
+
     constructor(romBuf: Uint8Array) {
         super("MBC1", romBuf);
+        console.log("MBC1: Number of rom banks: " + Math.pow(2, romBuf[0x148] + 1));
+        console.log("MBC1: Number of extern banks: " + this.ramsize[romBuf[0x0149]]);
         super.addExternBank();
         this.ramEnabled = false;
         this.bankingMode = false;
@@ -19,7 +23,7 @@ class MBC1 extends Cartridge {
             this.ramEnabled = false;
         } else if(addr < 0x4000) {
             //Change our bank B
-            //console.log("Changing to bank: " + val);
+            console.log("Changing to bank: " + val);
             let bankNum;
             if(val === 0 || val === 0x20 || val === 0x40 || val === 0x60) {
                 bankNum = val + 1; 
