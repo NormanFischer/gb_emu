@@ -77,13 +77,11 @@ abstract class Cartridge {
     }
 
     public externRead(addr: number): number {
-        console.log("Extern read");
         const offset = addr - 0xA000;
         return (this.externRam[this.bankExtern])[offset];
     }
 
     public externWrite(addr: number, val: number) {
-        console.log("extern write");
         const offset = addr - 0xA000;
         (this.externRam[this.bankExtern])[offset] = val;
     }

@@ -1707,6 +1707,7 @@ class CPUContext {
 
     //0x76 : HALT
     private HALT(): number {
+        console.log("HALT IME = " + this.IME);
         this._isHalted = true;
         return 4;
     }
@@ -2539,14 +2540,12 @@ class CPUContext {
     private LD_A_MA16(args: Uint8Array): number {
         const addr = leTo16Bit(args[0], args[1]);
         const val = this._mmu.read_byte(addr);
-        //console.log("Loading " + val + " into A register @" + addr.toString(16));
         this._state.a = val;
         return 16;
     }
 
     //0xFB : EI
     private EI(): number {
-        //console.log("Enabling interrupts");
         this._interrupt_enable_pending = true;
         return 4;
     }

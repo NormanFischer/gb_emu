@@ -64,27 +64,31 @@ class Emulator {
             //console.log("instr: " + (this._cpu.pc - 1).toString(16) + " -- opcode: 0x" + opcode.toString(16));
             const args = this.fetch_args(opcode);
             cycles = this._cpu.execute_instruction(opcode, args);
+            //Halt bug
+            if(opcode === 0x76 && this._cpu.IME === false && ((this._cpu.mmu.read_byte(0xFFFF) & this._cpu.mmu.read_byte(0xFF0F)) !== 0)) {
+                console.log("Halt bug");
+                this._cpu.isHalted = false;
+            }
+            
+            if(!this._cpu.isHalted && this._cpu.IME) {
+                //Hanlde interrupts
+                interrupt_handler(this);
+            }
+
+            if(this._cpu.interrupt_enable_pending) {
+                //Accounting for one op delay
+                this._cpu.IME = true;
+                this._cpu.interrupt_enable_pending = false;
+            }
+
         } else {
             cycles = 1;
-            //Wait for IF register to be marked
-            if(this._cpu.mmu.read_byte(0xFF0F) & this._cpu.mmu.read_byte(0xFFFF)) {
+            //Wait for IE & IF register to be marked
+            if(this._cpu.mmu.read_byte(0xFFFF) & this._cpu.mmu.read_byte(0xFF0F) & 0x1F) {
                 this._cpu.isHalted = false;
             }
         }
-
         this._cpu.mmu.timer.update(this._cpu.mmu, cycles);
-
-        if(this._cpu.IME) {
-            //Hanlde interrupts
-            interrupt_handler(this);
-        }
-
-        if(this._cpu.interrupt_enable_pending) {
-            //Accounting for one op delay
-            this._cpu.IME = true;
-            this._cpu.interrupt_enable_pending = false;
-        }
-
         //Frame rendering
         this._cpu.mmu.ppu.ppu_step(this._cpu.mmu, cycles, this._frameData);
         if(this._cpu.mmu.ppu.mode === 1) {

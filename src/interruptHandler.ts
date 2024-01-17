@@ -22,7 +22,7 @@ function push_interrupt(emu: Emulator, addr: number) {
 function interrupt_handler(emu: Emulator) {
     const IE = emu.cpu.mmu.read_byte(0xFFFF);
     const IF = emu.cpu.mmu.read_byte(0xFF0F);
-    //Handle by priority (vblank may be redundant but it looks nice)
+    //Handle by priority
     if((IE & (1 << I_VBLANK)) && (IF & (1 << I_VBLANK))) {
         emu.cpu.IME = false;
         emu.cpu.mmu.write_byte(0xFF0F, IF & ~(1 << I_VBLANK));

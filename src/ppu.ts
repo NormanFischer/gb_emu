@@ -85,7 +85,6 @@ class PPU {
         } else if(addr === 0xFF42) {
             this._scy = val;
         } else if(addr === 0xFF43) {
-            //console.log("scx = " + val);
             this._scx = val;
         } else if(addr === 0xFF40) {
             this._lcdc = val;
@@ -148,11 +147,11 @@ class PPU {
         }
     }
 
-    //Address into the tilemap and return the tile number for a given tile
+    //Address into the tilemap and return the tile number for a given pixel
     //pixelX and pixelY are relative to scx and scy
     get_tile_num_from_pixel(tileMapBase: number, pixelX: number, pixelY: number): number {
         //TODO: Incorporate scrolling
-        const tileX = Math.floor(pixelX/8);
+        const tileX = Math.floor((pixelX + this._scx)/8);
         const tileY = Math.floor(pixelY/8);
         const tileNum = this.vram_read(tileMapBase + (32 * tileY) + tileX);
         return tileNum;
@@ -160,9 +159,11 @@ class PPU {
 
     //Given relative coordinates and a base tile address in vram, return the pixel value
     get_pixel_val_from_tile(x: number, y: number, tileAddr: number): number {
-        //Get our current line (y)
         if(tileAddr % 16 !== 0) {
             console.error("Invalid tile base: " + tileAddr.toString(16));
+        }
+        if(x > 7 || y > 7) {
+            console.error("Invalid pixel pos X = " + x + " Y = " + y);
         }
         //console.log("Rendering x = " + x + " y = " + y + " from tilenum: " + tileAddr.toString(16));
         const lowByte = this.vram_read(tileAddr + y * 2);
@@ -196,8 +197,7 @@ class PPU {
             if(tileStart === 0x9000) {
                 tileNum = u8Toi8(tileNum);
             }
-            //TODO: Change this
-            const pixelVal = this.get_pixel_val_from_tile(i % 8, this._currentLine % 8, tileStart + (tileNum * 0x10));
+            const pixelVal = this.get_pixel_val_from_tile((i + this._scx) % 8, this._currentLine % 8, tileStart + (tileNum * 0x10));
             switch(pixelVal) {
                 case 0b00:
                     //Transparent
@@ -240,13 +240,18 @@ class PPU {
             const xPos = this.oam_read(0xFE00 + 4 * i + 1);
             const tileIdx = this.oam_read(0xFE00 + 4 * i + 2);
             const attr = this.oam_read(0xFE00 + 4 * i +  3);
-
-            if(this._currentLine - yPos + 16 < 8 && this._currentLine - yPos + 16 > 0) {
+            if(this._currentLine - yPos + 16 < 8 && this._currentLine - yPos + 16 >= 0) {
                 //Push pixels starting from x value
                 for(let i = 0; i < 8; i++) {
                     const tileAddr = 0x8000 + (tileIdx * 0x10);
-                    const xPixelPos = (xPos + i) % 8;
-                    const yPixelPos = this._currentLine - yPos + 15;
+                    let xPixelPos = i;
+                    if(attr & 0b0100000) {
+                        xPixelPos = 7 - xPixelPos;
+                    }
+                    let yPixelPos = this._currentLine - yPos + 16;
+                    if(attr & 0b1000000) {
+                        yPixelPos = 7 - yPixelPos;
+                    }
                     const pixelData = this.get_pixel_val_from_tile(xPixelPos, yPixelPos, tileAddr);
                     switch(pixelData) {
                         case 0b00:

@@ -71,8 +71,8 @@ class MMU {
             //wram
             return this.rom.wramRead(addr);
         } else if (addr < 0xFE00) {
-            //reserved echo ram
-            return 0x0;
+            //echo ram
+            return this.rom.wramRead(addr - 0x2000);
         } else if (addr < 0xFEA0) {
             //oam read todo: dma transfer stuff
             return this.ppu.oam_read(addr);
@@ -107,7 +107,6 @@ class MMU {
             //console.log("IO read for unimplemented addr @" + addr.toString(16));
             return 0xff;
         } else if(addr === 0xFFFF) {
-            //console.log("Ie read");
             return this.ie;
         } else {
             //hram
@@ -135,7 +134,7 @@ class MMU {
             return;
         } else if (addr < 0xFE00) {
             //reserved echo ram
-            console.log("Echo ram reserved, write denied...");
+            this.rom.wramWrite(addr - 0x2000, val);
             return;
         } else if (addr < 0xFEA0) {
             this.ppu.oam_write(addr, val);
@@ -152,7 +151,7 @@ class MMU {
                     console.error("Bad case");
                 }
             }
-            
+
             if(addr >= 0xFF04 && addr <= 0xFF07) {
                 this.timer.timer_write(addr, val);
             }
