@@ -5,14 +5,13 @@ import MMU from "./mmu";
 const PPU_OAM_ACCESS_TIME = 80;
 const PPU_VRAM_ACCESS_TIME = 172;
 const PPU_HBLANK_TIME = 204;
-const PPU_VBLANK_TIME = PPU_OAM_ACCESS_TIME + PPU_VRAM_ACCESS_TIME + PPU_HBLANK_TIME;
 
 const PPU_MODE_OAM = 2;
 const PPU_MODE_VRAM = 3;
 const PPU_MODE_HBLANK = 0;
 const PPU_MODE_VBLANK = 1;
 
-const DISPLAY_LINES = 143;
+const DISPLAY_LINES = 144;
 
 class PPU {
     private _enabled: boolean;
@@ -21,6 +20,8 @@ class PPU {
     private _currentLine: number;
     private _scy: number;
     private _scx: number;
+    private _wy: number;
+    private _wx: number;
     private _vram: Uint8Array;
     private _oam: Uint8Array;
     private _lcdc: number;
@@ -29,7 +30,7 @@ class PPU {
     
     constructor() {
         this._enabled = true;
-        this._lcdStat = 0;
+        this._lcdStat = 0x85;
         //0x2000 bytes of VRAM
         this._vram = new Uint8Array(0x2000);
         this._oam = new Uint8Array(0xA0);
@@ -37,29 +38,46 @@ class PPU {
         this._currentLine = 0;
         this._scy = 0;
         this._scx = 0;
-        this._lcdc = 0;
+        this._wy = 0;
+        this._wx = 0;
+        this._lcdc = 0x91;
         this._lyc = 0;
         this._frameBuffer = new Array(92160);
     }
 
-    vram_read(addr: number) {
-        const relAddr = addr - 0x8000;
-        return this._vram[relAddr];
+    vram_read(addr: number): number {
+        if(this.mode !== PPU_MODE_VRAM) {
+            const relAddr = addr - 0x8000;
+            return this._vram[relAddr];
+        }
+        return 0xFF;
     }
 
     vram_write(addr: number, val: number) {
-        const relAddr = addr - 0x8000;
-        this._vram[relAddr] = val;
+        if(this.mode !== PPU_MODE_VRAM) {
+            const relAddr = addr - 0x8000;
+            this._vram[relAddr] = val;
+        }
     }
 
-    oam_read(addr: number) {
-        const relAddr = addr - 0xFE00;
-        return this._oam[relAddr];
+    oam_read(addr: number): number {
+        if(this.mode === PPU_MODE_HBLANK || this.mode === PPU_MODE_VBLANK) {
+            const relAddr = addr - 0xFE00;
+            //console.log("Read " + this._oam[relAddr].toString(16) + " from @" + addr.toString(16));
+            return this._oam[relAddr];
+        } else {
+            console.log("Oam read disabled");
+            return 0xFF;
+        }
     }
 
     oam_write(addr: number, val: number) {
-        const relAddr = addr - 0xFE00;
-        this._oam[relAddr] = val;
+        if(this.mode === PPU_MODE_HBLANK || this.mode === PPU_MODE_VBLANK) {
+            const relAddr = addr - 0xFE00;
+            this._oam[relAddr] = val;
+        } else {
+            console.log("Oam write disabled"); 
+        }
     }
 
     io_read(addr: number): number {
@@ -73,15 +91,19 @@ class PPU {
             return this._scx;
         } else if (addr === 0xFF40) {
             return this._lcdc;
-        } else if (addr == 0xFF45) {
+        } else if (addr === 0xFF45) {
             return this._lyc;
+        } else if (addr === 0xFF4A) {
+            return this._wy;
+        } else if (addr === 0xFF4B) {
+            return this._wx;
         }
         return 0;
     }
 
-    io_write(addr: number, val: number) {
+    io_write(addr: number, val: number, mmu: MMU) {
         if(addr === 0xFF44) {
-            this._currentLine = val;
+            console.log("Write current line read only");
         } else if(addr === 0xFF41) {
             this._lcdStat = val;
         } else if(addr === 0xFF42) {
@@ -91,16 +113,26 @@ class PPU {
         } else if(addr === 0xFF40) {
             this._lcdc = val;
             if(!(this._lcdc & 0b10000000)) {
-                console.log("LCD/PPU OFF");
+                console.log("PPU OFF");
+                if(this.mode !== PPU_MODE_VBLANK) {
+                    console.error("WARNING: LCD WAS DISABLED OUTSIDE OF VBLANK PERIOD MODE = " + this.mode + " MODE TIME = " + this._modeTime);
+                }
                 this._enabled = false;
                 this._modeTime = 0;
                 this._currentLine = 0;
                 this.mode = 0;
-            } else {
+            } else if(((this._lcdc & 0b10000000) >> 7) === 1) {
+                console.log("PPU ON");
                 this._enabled = true;
+                this.check_lyc(mmu);
+                this.checkMode(mmu, this.mode);
             }
         } else if(addr === 0xFF45) {
             this._lyc = val;
+        } else if (addr === 0xFF4A) {
+            return this._wy = val;
+        } else if (addr === 0xFF4B) {
+            return this._wx = val;
         }
     }
 
@@ -216,7 +248,7 @@ class PPU {
                         default:
                             console.error("Invalid pixel value found");
                     }
-                    //ctx.fillRect(xPos, yPos, 1, 1);
+                    ctx.fillRect(xPos, yPos, 1, 1);
                 }
             }
         }
@@ -383,8 +415,8 @@ class PPU {
 
     //Called in the main loop
     //cycles are the number of cycles from the last cpu execution
-    ppu_step(mmu: MMU, cycles: number, frameData: ImageData, backgroundData: ImageData) {
-        this._modeTime += cycles;
+    ppu_step(mmu: MMU, frameData: ImageData, backgroundData: ImageData) {
+        this._modeTime++;
 
         //What mode are we currently in?
         switch(this.mode) {
@@ -410,13 +442,14 @@ class PPU {
                     //Render scanline here
                     this.render_background_scanline(frameData);
                     this.render_oam(frameData);
-                    //this.put_background_image(backgroundData);
                     this._currentLine++;
                     this.check_lyc(mmu);
 
                     if(this._currentLine === DISPLAY_LINES) {
                         //Vblank time!
                         this.mode = PPU_MODE_VBLANK;
+                        request_interrupt(mmu, 0);
+                        this.put_background_image(backgroundData);
                         this.checkMode(mmu, this.mode);
                     } else {
                         this.mode = PPU_MODE_OAM;
@@ -426,12 +459,12 @@ class PPU {
                 break;
             //VBLANK
             case PPU_MODE_VBLANK:
-                if(this._modeTime >= PPU_VBLANK_TIME) {
+                if(this._modeTime >= 456) {
                     this._modeTime = 0;
                     this._currentLine++;
                     this.check_lyc(mmu);
 
-                    if(this._currentLine > DISPLAY_LINES + 10) {
+                    if(this._currentLine >= DISPLAY_LINES + 10) {
                         this.mode = PPU_MODE_OAM;
                         this.checkMode(mmu, this.mode);
 

@@ -17,6 +17,8 @@ class CPUContext {
     private _IME: boolean;
     private _isHalted: boolean;
 
+    private updateDevices: Function;
+
     //Lookup table for all instructions
     instructions: { [key: number]: Instruction } = {
         0x00: {op: this.NOP.bind(this),      len: 1},
@@ -604,7 +606,7 @@ class CPUContext {
         0xFF: () => {this._state.a = this.cb_set(7, this._state.a); return 8; },
     };
 
-    constructor(romData: Uint8Array) {
+    constructor(romData: Uint8Array, updateDevices: Function) {
         this._state = {a: 0, b: 0, c: 0, d: 0, e: 0, f: 0, h: 0, l: 0};
         this._sp = 0;
         this._pc = 0;
@@ -613,18 +615,23 @@ class CPUContext {
         this._interrupt_enable_pending = false;
         this._mmu = new MMU(romData);
         this._isHalted = false;
+        this.updateDevices = updateDevices;
     }
 
     start_cpu() {
         this._pc = 0x0100;
         this._sp = 0xFFFE;
-        const hl_init = 0x014d;
-        this._state.h = hl_init >> 8;
-        this._state.l = hl_init & 0xFF;
+
+        this._state.a = 0x01;
+        this._state.f = 0xB0;
+
         this._state.c = 0x13;
+
         this._state.e = 0xD8;
-        this._state.a = 1;
-        this._state.f = 0xb0;
+
+        this._state.h = 0x01;
+        this._state.l = 0x4D;
+
         this._isRunning = true;
     }
 
@@ -755,56 +762,67 @@ class CPUContext {
 
     //operation logic here
     private ret_step() {
-        const newPc = this.pop_16bit();
-        this._pc = newPc;
-       //console.log("Returning to " + this._pc.toString(16) + " sp = " + this._sp.toString(16));
+        this.updateDevices();
+        const lo = this.pop_8bit();
+        this._pc = (this._pc & 0xFF00) | lo;
+        this.updateDevices();
+        const hi = this.pop_8bit();
+        this._pc = (hi << 8) | lo;
+        this.updateDevices();
     }
 
     private restart_step(addr: number) {
         this.push_16bit(this._pc);
+        this.updateDevices();
         this._pc = addr;
     }
 
     private inc_hl() {
         const hl = get_hl(this._state);
         const res = add16Bit(hl, 1).res;
-        this._state.h = res >> 8;
         this._state.l = res & 0xFF;
+        this.updateDevices();
+        this._state.h = res >> 8;
     }
 
     private dec_hl() {
         const hl = get_hl(this._state);
         const res = subtract16bit(hl, 1).res;
-        this._state.h = res >> 8;
         this._state.l = res & 0xFF;
+        this.updateDevices();
+        this._state.h = res >> 8;
     }
 
     private inc_bc() {
         const bc = get_bc(this._state);
         const res = add16Bit(bc, 1).res;
-        this._state.b = res >> 8;
         this._state.c = res & 0xFF;
+        this.updateDevices();
+        this._state.b = res >> 8;
     }
 
     private dec_bc() {
         const bc = get_bc(this._state);
         const res = subtract16bit(bc, 1).res;
-        this._state.b = res >> 8;
         this._state.c = res & 0xFF;
+        this.updateDevices();
+        this._state.b = res >> 8;
     }
 
     private inc_de() {
         const de = get_de(this._state);
         const res = add16Bit(de, 1).res;
-        this._state.d = res >> 8;
         this._state.e = res & 0xFF;
+        this.updateDevices();
+        this._state.d = res >> 8;
     }
 
     private dec_de() {
         const de = get_de(this._state);
         const res = subtract16bit(de, 1).res;
-        this._state.d = res >> 8;
         this._state.e = res & 0xFF;
+        this.updateDevices();
+        this._state.d = res >> 8;
     }
 
     private dec_sp() {
@@ -865,6 +883,7 @@ class CPUContext {
 
     push_8bit(val: number) {
         this._mmu.write_byte(--this._sp, val);
+        this.updateDevices();
     }
 
     push_16bit(val: number) {
@@ -879,11 +898,11 @@ class CPUContext {
         return val;
     }
 
-    pop_16bit(): number {
-        const lo = this.pop_8bit();
-        const hi = this.pop_8bit();
-        return (hi << 8) | lo;
-    }
+    // pop_16bit(): number {
+    //     const lo = this.pop_8bit();
+    //     const hi = this.pop_8bit();
+    //     return (hi << 8) | lo;
+    // }
 
     //0x00 : NOP
     private NOP(): number {
@@ -901,6 +920,7 @@ class CPUContext {
     private LD_MBC_A(): number {
         const addr = get_bc(this._state);
         this._mmu.write_byte(addr, this._state.a);
+        this.updateDevices();
         return 8;
     }
 
@@ -932,7 +952,7 @@ class CPUContext {
         return 8;
     }
 
-    //0x06 : RLCA
+    //0x07 : RLCA
     private RLCA(): number {
         this._state.a = this.cb_rlc(this._state.a);
         this.set_flags(0, undefined, undefined, undefined); 
@@ -943,12 +963,15 @@ class CPUContext {
     private LD_MA16_SP(args: Uint8Array): number {
         const addr = leTo16Bit(args[0], args[1]);
         this._mmu.write_byte(addr, this._sp & 0xFF);
+        this.updateDevices();
         this._mmu.write_byte(addr + 1, (this._sp >> 8) & 0xFF);
+        this.updateDevices();
         return 20;
     }
     
     //0x09 : ADD_HL_BC
     private ADD_HL_BC(): number {
+        this.updateDevices();
         const res = add16Bit(get_hl(this._state), get_bc(this._state));
         set_hl(this._state, res.res);
         this.set_flags(undefined, 0, res.halfCarry, res.carry);
@@ -959,6 +982,7 @@ class CPUContext {
     private LD_A_MBC(): number {
         const addr = get_bc(this._state);
         const newVal = this._mmu.read_byte(addr);
+        this.updateDevices();
         this._state.a = newVal;
         return 8;
     }
@@ -1009,12 +1033,13 @@ class CPUContext {
     private LD_MDE_A(): number {
         const addr = get_de(this._state);
         this._mmu.write_byte(addr, this._state.a);
+        this.updateDevices();
         return 8;
     }
 
     //0x13 : INC_DE
     private INC_DE(): number {
-        this.inc_de(); 
+        this.inc_de();
         return 8;
     }
 
@@ -1052,11 +1077,13 @@ class CPUContext {
     private JR_R8(args: Uint8Array): number {
         const e = u8Toi8(args[0]);
         this._pc += e;
+        this.updateDevices();
         return 12;
     }
 
     //0x19 : ADD_HL_DE
     private ADD_HL_DE(): number {
+        this.updateDevices();
         const res = add16Bit(get_hl(this._state), get_de(this._state));
         set_hl(this._state, res.res);
         this.set_flags(undefined, 0, res.halfCarry, res.carry);
@@ -1067,6 +1094,7 @@ class CPUContext {
     private LD_A_MDE(): number {
         const addr = get_de(this._state);
         const newVal = this._mmu.read_byte(addr);
+        this.updateDevices();
         this._state.a = newVal;
         return 8;
     }
@@ -1113,6 +1141,7 @@ class CPUContext {
         if(!zeroFlag) {
             const e = u8Toi8(args[0]);
             this._pc += e;
+            this.updateDevices();
             return 12;
         }
         return 8;
@@ -1189,6 +1218,7 @@ class CPUContext {
         if(zeroFlag) {
             const e = u8Toi8(args[0]);
             this._pc += e;
+            this.updateDevices();
             return 12;
         }
         return 8;
@@ -1198,6 +1228,7 @@ class CPUContext {
     private ADD_HL_HL(): number {
         const hl = get_hl(this._state);
         const res = add16Bit(hl, hl);
+        this.updateDevices();
         set_hl(this._state, res.res);
         this.set_flags(undefined, 0, res.halfCarry, res.carry);
         return 8;
@@ -1242,7 +1273,6 @@ class CPUContext {
 
     //0x2F : CPL
     private CPL(): number {
-        //I hate javascript lol
         this._state.a = ~(this._state.a) & 0xFF;
         this.set_flags(undefined, 1, 1, undefined);
         return 4;
@@ -1254,6 +1284,7 @@ class CPUContext {
         if(!carryFlag) {
             const e = u8Toi8(args[0]);
             this._pc += e;
+            this.updateDevices();
             return 12;
         }
         return 8;
@@ -1276,6 +1307,7 @@ class CPUContext {
 
     //0x33 : INC_SP
     private INC_SP(): number {
+        this.updateDevices();
         const res = add16Bit(this._sp, 1).res;
         this._sp = res;
         return 8;
@@ -1285,8 +1317,11 @@ class CPUContext {
     private INC_MHL(): number {
         const addr = get_hl(this._state);
         const res = add8Bit(this._mmu.read_byte(addr), 1);
+        this.updateDevices();
+
         this._mmu.write_byte(addr, res.res);
         this.set_flags(res.zero, 0, res.halfCarry, undefined);
+        this.updateDevices();
         return 12;
     }
 
@@ -1294,8 +1329,11 @@ class CPUContext {
     private DEC_MHL(): number {
         const hl = get_hl(this._state);
         const res = subtract8Bit(this._mmu.read_byte(hl), 1);
+        this.updateDevices();
+
         this._mmu.write_byte(hl, res.res);
         this.set_flags(res.zero, 1, res.halfCarry, undefined);
+        this.updateDevices();
         return 12;
     }
 
@@ -1303,6 +1341,7 @@ class CPUContext {
     private LD_MHL_D8(args: Uint8Array): number {
         const addr = get_hl(this._state);
         this._mmu.write_byte(addr, args[0]);
+        this.updateDevices();
         return 12;
     }
 
@@ -1317,6 +1356,7 @@ class CPUContext {
         if(this.get_carry()) {
             const e = u8Toi8(args[0]);
             this._pc += e;
+            this.updateDevices();
             return 12;
         }
         return 8;
@@ -1324,6 +1364,7 @@ class CPUContext {
 
     //0x39 : ADD_HL_SP
     private ADD_HL_SP(): number {
+        this.updateDevices();
         const res = add16Bit(get_hl(this._state), this._sp);
         set_hl(this._state, res.res);
         this.set_flags(undefined, 0, res.halfCarry, res.carry);
@@ -1341,6 +1382,7 @@ class CPUContext {
 
     //0x3B : DEC_SP
     private DEC_SP(): number {
+        this.updateDevices();
         this.dec_sp();
         return 8;
     }
@@ -1417,6 +1459,7 @@ class CPUContext {
         const addr = get_hl(this._state);
         const val = this._mmu.read_byte(addr);
         this._state.b = val;
+        this.updateDevices();
         return 8;
     }
 
@@ -1466,6 +1509,7 @@ class CPUContext {
         const addr = get_hl(this._state);
         const val = this._mmu.read_byte(addr);
         this._state.c = val;
+        this.updateDevices();
         return 8;
     }
 
@@ -1512,7 +1556,9 @@ class CPUContext {
 
     //0x56 : LD_D_MHL
     private LD_D_MHL(): number {
-        this._state.d = this._mmu.read_byte(get_hl(this._state));
+        const val = this._mmu.read_byte(get_hl(this._state));
+        this._state.d = val;
+        this.updateDevices();
         return 8;
     }
 
@@ -1559,7 +1605,9 @@ class CPUContext {
 
     //0x5E : LD_E_MHL
     private LD_E_MHL(): number {
-        this._state.e = this._mmu.read_byte(get_hl(this._state));
+        const val = this._mmu.read_byte(get_hl(this._state));
+        this._state.e = val;
+        this.updateDevices();
         return 8; 
     }
 
@@ -1606,7 +1654,9 @@ class CPUContext {
 
     //0x66 : LD_H_MHL
     private LD_H_MHL(): number {
-        this._state.h = this._mmu.read_byte(get_hl(this._state));
+        const val = this._mmu.read_byte(get_hl(this._state));
+        this._state.h = val;
+        this.updateDevices();
         return 8;
     }
 
@@ -1653,7 +1703,9 @@ class CPUContext {
 
     //0x6E : LD_L_MHL
     private LD_L_MHL(): number {
-        this._state.l = this._mmu.read_byte(get_hl(this._state));
+        const val = this._mmu.read_byte(get_hl(this._state));
+        this._state.l = val;
+        this.updateDevices();
         return 8; 
     }
 
@@ -1667,6 +1719,7 @@ class CPUContext {
     private LD_MHL_B(): number {
         const addr = get_hl(this._state);
         this._mmu.write_byte(addr, this._state.b);
+        this.updateDevices();
         return 8;
     }
 
@@ -1674,6 +1727,7 @@ class CPUContext {
     private LD_MHL_C(): number {
         const addr = get_hl(this._state);
         this._mmu.write_byte(addr, this._state.c);
+        this.updateDevices();
         return 8;
     }
 
@@ -1681,6 +1735,7 @@ class CPUContext {
     private LD_MHL_D(): number {
         const addr = get_hl(this._state);
         this._mmu.write_byte(addr, this._state.d);
+        this.updateDevices();
         return 8;
     }
 
@@ -1688,6 +1743,7 @@ class CPUContext {
     private LD_MHL_E(): number {
         const addr = get_hl(this._state);
         this._mmu.write_byte(addr, this._state.e);
+        this.updateDevices();
         return 8;
     }
 
@@ -1695,6 +1751,7 @@ class CPUContext {
     private LD_MHL_H(): number {
         const addr = get_hl(this._state);
         this._mmu.write_byte(addr, this._state.h);
+        this.updateDevices();
         return 8;
     }
 
@@ -1702,6 +1759,7 @@ class CPUContext {
     private LD_MHL_L(): number {
         const addr = get_hl(this._state);
         this._mmu.write_byte(addr, this._state.l);
+        this.updateDevices();
         return 8;
     }
 
@@ -1716,6 +1774,7 @@ class CPUContext {
     private LD_MHL_A(): number {
         const addr = get_hl(this._state);
         this._mmu.write_byte(addr, this._state.a);
+        this.updateDevices();
         return 8;
     }
 
@@ -1760,6 +1819,7 @@ class CPUContext {
         const addr = get_hl(this._state);
         const val = this._mmu.read_byte(addr);
         this._state.a = val;
+        this.updateDevices();
         return 8;
     }
 
@@ -1807,7 +1867,9 @@ class CPUContext {
 
     //0x86 : ADD_A_MHL
     private ADD_A_MHL(): number {
-        this.add_val(this._mmu.read_byte(get_hl(this._state)));
+        const val = this._mmu.read_byte(get_hl(this._state));
+        this.add_val(val);
+        this.updateDevices();
         return 8;
     }
 
@@ -1855,7 +1917,9 @@ class CPUContext {
 
     //0x8E : ADC_A_MHL
     private ADC_A_MHL(): number {
-        this.addC_val(this._mmu.read_byte(get_hl(this._state)));
+        const val = this._mmu.read_byte(get_hl(this._state));
+        this.updateDevices();
+        this.addC_val(val);
         return 8;
     }   
 
@@ -1903,7 +1967,9 @@ class CPUContext {
 
     //0x96 : SUB_MHL
     private SUB_MHL(): number {
-        this.sub_val(this._mmu.read_byte(get_hl(this._state)));
+        const val = this._mmu.read_byte(get_hl(this._state));
+        this.updateDevices();
+        this.sub_val(val);
         return 8;
     }
 
@@ -1951,7 +2017,9 @@ class CPUContext {
 
     //0x9E : SBC_A_MHL
     private SBC_A_MHL(): number {
-        this.subC_val(this._mmu.read_byte(get_hl(this._state)));
+        const val = this._mmu.read_byte(get_hl(this._state));
+        this.updateDevices();
+        this.subC_val(val);
         return 8;
     }
 
@@ -2001,6 +2069,7 @@ class CPUContext {
     private AND_MHL() {
         const addr = get_hl(this._state);
         const val = this._mmu.read_byte(addr);
+        this.updateDevices();
         this.and_val(val);
         return 8;
     }
@@ -2051,6 +2120,7 @@ class CPUContext {
     private XOR_MHL() {
         const addr = get_hl(this._state);
         const val = this._mmu.read_byte(addr);
+        this.updateDevices();
         this.xor_val(val);
         return 8;
     }
@@ -2101,6 +2171,7 @@ class CPUContext {
     private OR_MHL() {
         const addr = get_hl(this._state);
         const val = this._mmu.read_byte(addr);
+        this.updateDevices();
         this.or_val(val);
         return 8;
     }
@@ -2151,6 +2222,7 @@ class CPUContext {
     private CP_MHL() {
         const addr = get_hl(this._state);
         const val = this._mmu.read_byte(addr);
+        this.updateDevices();
         this.cp_val(val);
         return 8;
     }
@@ -2163,6 +2235,7 @@ class CPUContext {
 
     //0xC0 : RET_NZ
     private RET_NZ() {
+        this.updateDevices();
         const zero = this.get_zero();
         if(!zero) {
             this.ret_step();
@@ -2173,7 +2246,12 @@ class CPUContext {
 
     //0xC1 : POP_BC
     private POP_BC() {
-        set_bc(this._state, this.pop_16bit());
+        const lo = this.pop_8bit();
+        this._state.c = lo;
+        this.updateDevices();
+        const hi = this.pop_8bit();
+        this._state.b = hi;
+        this.updateDevices();
         return 12;
     }
 
@@ -2181,6 +2259,7 @@ class CPUContext {
     private JP_NZ_A16(args: Uint8Array) {
         const addr = leTo16Bit(args[0], args[1]);
         if(!this.get_zero()) {
+            this.updateDevices();
             this._pc = addr;
             return 16;
         }
@@ -2190,7 +2269,7 @@ class CPUContext {
     //0xC3 : JP_A16
     private JP_A16(args: Uint8Array) {
         const addr = leTo16Bit(args[0], args[1]);
-        //console.log("JP_A16: Jumping to: " + addr.toString(16));
+        this.updateDevices();
         this._pc = addr;
         return 16;
     }
@@ -2199,6 +2278,7 @@ class CPUContext {
     private CALL_NZ_A16(args: Uint8Array) {
         const addr = leTo16Bit(args[0], args[1]);
         if(!this.get_zero()) {
+            this.updateDevices();
             this.push_16bit(this._pc);
             this._pc = addr;
             return 24;
@@ -2209,6 +2289,7 @@ class CPUContext {
     //0xC5 : PUSH_BC
     private PUSH_BC() {
         this.push_16bit(get_bc(this._state));
+        this.updateDevices();
         return 16;
     }
 
@@ -2228,6 +2309,9 @@ class CPUContext {
 
     //0xC8 : RET_Z
     private RET_Z() {
+        // console.log("Returning if zero: " + this.get_zero());
+        // console.log("A = " + this._state.a);
+        this.updateDevices();
         if(this.get_zero()) {
             this.ret_step();
             return 20;
@@ -2244,8 +2328,8 @@ class CPUContext {
     //0xCA : JP_Z_A16
     private JP_Z_A16(args: Uint8Array): number {
         if(this.get_zero()) {
+            this.updateDevices();
             this._pc = leTo16Bit(args[0], args[1]);
-            //console.log("JP_Z: Jumping to " + this._pc.toString(16));
             return 16;
         }
         return 12;
@@ -2253,7 +2337,13 @@ class CPUContext {
 
     //0xCB : CB
     private CB(args: Uint8Array): number {
-        return this.cb[args[0]]();
+        const val = this.cb[args[0]]();
+        if(((args[0]) & 0xF) === 0x06 || ((args[0]) & 0xF) === 0x0E) {
+            if((((args[0]) >> 4) !== 0x4) && (((args[0]) >> 4) !== 0x5) && (((args[0]) >> 4) !== 0x6) && (((args[0]) >> 4) !== 0x7)) {
+                this.updateDevices();
+            }   
+        }
+        return val;
     }
 
     //0xCC : CALL_Z_A16
@@ -2261,6 +2351,7 @@ class CPUContext {
         const msb = args[1];
         const lsb = args[0];
         if(this.get_zero()) {
+            this.updateDevices();
             this.push_16bit(this._pc);
             this._pc = (msb << 8) | lsb;
             return 24;
@@ -2272,9 +2363,9 @@ class CPUContext {
     private CALL_A16(args: Uint8Array) {
         const msb = args[1];
         const lsb = args[0];
+        this.updateDevices();
         this.push_16bit(this._pc);
         this._pc = (msb << 8) | lsb;
-        //console.log("PC is now " + this._pc.toString(16));
         return 24;
     }
 
@@ -2294,6 +2385,7 @@ class CPUContext {
 
     //0xD0 : RET_NC
     private RET_NC(): number {
+        this.updateDevices();
         if(!this.get_carry()) {
             this.ret_step();
             return 20;
@@ -2303,7 +2395,12 @@ class CPUContext {
 
     //0xD1 : POP_DE
     private POP_DE(): number {
-        set_de(this._state, this.pop_16bit());
+        const lo = this.pop_8bit();
+        this._state.e = lo;
+        this.updateDevices();
+        const hi = this.pop_8bit();
+        this._state.d = hi;
+        this.updateDevices();
         return 12;
     }
 
@@ -2312,6 +2409,7 @@ class CPUContext {
         const addr = leTo16Bit(args[0], args[1]);
         if(!this.get_carry()) {
             this._pc = addr;
+            this.updateDevices();
             return 16;
         }
         return 12;
@@ -2321,6 +2419,7 @@ class CPUContext {
     private CALL_NC_A16(args: Uint8Array): number {
         const addr = leTo16Bit(args[0], args[1]);
         if(!this.get_carry()) {
+            this.updateDevices();
             this.push_16bit(this._pc);
             this._pc = addr;
             return 24;
@@ -2330,6 +2429,7 @@ class CPUContext {
 
     //0xD5 : PUSH_DE
     private PUSH_DE(): number {
+        this.updateDevices();
         this.push_16bit(get_de(this._state));
         return 16;
     }
@@ -2350,6 +2450,7 @@ class CPUContext {
 
     //0xD8 : RET_C
     private RET_C(): number {
+        this.updateDevices();
         if(this.get_carry()) {
             this.ret_step();
             return 20;
@@ -2359,7 +2460,7 @@ class CPUContext {
 
     //0xD9 : RETI
     private RETI(): number {
-        //console.log("RETI @" + this._pc.toString(16));
+        console.log("RETI @" + this._pc.toString(16));
         this.ret_step();
         this.interrupt_enable_pending = true;
         return 16;
@@ -2369,6 +2470,7 @@ class CPUContext {
     private JP_C_A16(args: Uint8Array): number {
         if(this.get_carry()) {
             this._pc = leTo16Bit(args[0], args[1]);
+            this.updateDevices();
             return 16;
         }
         return 12;
@@ -2379,6 +2481,7 @@ class CPUContext {
         const msb = args[1];
         const lsb = args[0];
         if(this.get_carry()) {
+            this.updateDevices();
             this.push_16bit(this._pc);
             this._pc = (msb << 8) | lsb;
             return 24;
@@ -2401,15 +2504,19 @@ class CPUContext {
     //0xE0 : LDH_MA8_A
     private LDH_MA8_A(args: Uint8Array): number {
         const addr = (0xFF << 8) | args[0];
-        //console.log("Loading value of A into addr " + addr.toString(16));
         this._mmu.write_byte(addr, this._state.a);  
-        //console.log("Unimplemented");
+        this.updateDevices();
         return 12;
     }
 
     //0xE1 : POP_HL
     private POP_HL(): number {
-        set_hl(this._state, this.pop_16bit());
+        const lo = this.pop_8bit();
+        this._state.l = lo;
+        this.updateDevices();
+        const hi = this.pop_8bit();
+        this._state.h = hi;
+        this.updateDevices();
         return 12;
     }
 
@@ -2417,12 +2524,14 @@ class CPUContext {
     private LD_MC_A(): number {
         const addr = (0xFF << 8) | this._state.c;
         this.mmu.write_byte(addr, this._state.a);
+        this.updateDevices();
         return 8;
     }
 
     //0xE5 : PUSH_HL
     private PUSH_HL(): number {
         this.push_16bit(get_hl(this._state));
+        this.updateDevices();
         return 16;
     }
 
@@ -2440,10 +2549,14 @@ class CPUContext {
 
     //0xE8 : ADD_SP_R8
     private ADD_SP_R8(args: Uint8Array): number {
+        this.updateDevices();
+        this.updateDevices();
         const val = u8Toi8(args[0]);
         const halfCarry = ((this._sp & 0xF) + (args[0] & 0xF) >= 0x10) ? 1 : 0;
         const carry = ((this._sp & 0xFF) + (val & 0xFF) >= 0x100) ? 1 : 0;
-        this._sp += val;
+        const newSP = this._sp + val;
+        this._sp = (this._sp & 0xF0) | (newSP & 0x0F);
+        this._sp = newSP;
         this.set_flags(0, 0, halfCarry, carry);
         return 16;
     }
@@ -2458,6 +2571,7 @@ class CPUContext {
     private LD_MA16_A(args: Uint8Array): number {
         const addr = leTo16Bit(args[0], args[1]);
         this._mmu.write_byte(addr, this._state.a);
+        this.updateDevices();
         return 16;
     }
 
@@ -2477,33 +2591,42 @@ class CPUContext {
     private LDH_A_MA8(args: Uint8Array): number {
         const addr = (0xFF << 8) | args[0];
         const val = this._mmu.read_byte(addr);
+        this.updateDevices();
         this._state.a = val;
-        //console.log("A is now " + this._state.a);
         return 12;
     }
 
     //0xF1 : POP_AF
     private POP_AF(): number {
-        set_af(this._state, this.pop_16bit());
+        const lo = this.pop_8bit();
+        this._state.f = lo & 0xF0;
+        this.updateDevices();
+        
+        const hi = this.pop_8bit();
+        this._state.a = hi;
+        this.updateDevices();
         return 12;
     }
 
     //0xF2 : LD_A_MC
     private LD_A_MC(): number {
         const addr = (0xFF << 8) | this._state.c;
-        this._state.a = this._mmu.read_byte(addr);
+        const val = this._mmu.read_byte(addr);
+        this._state.a = val;
+        this.updateDevices();
         return 8;
     }
 
     //0xF3 : DI
     private DI(): number {
-        //console.log("Disable interrupts");
+        console.log("Disable interrupts");
         this._IME = false;
         return 4;
     }
 
     //0xF5 : PUSH_AF
     private PUSH_AF(): number {
+        this.updateDevices();
         this.push_16bit(get_af(this._state));
         return 16;
     }
@@ -2522,6 +2645,7 @@ class CPUContext {
 
     //0xF8 : LD_HL_SPR8
     private LD_HL_SPR8(args: Uint8Array): number {
+        this.updateDevices();
         const val = u8Toi8(args[0]);
         const halfCarry = ((this._sp & 0xF) + (args[0] & 0xF) >= 0x10) ? 1 : 0;
         const carry = ((this._sp & 0xFF) + (val & 0xFF) >= 0x100) ? 1 : 0;
@@ -2532,6 +2656,7 @@ class CPUContext {
 
     //0xF9 : LD_SP_HL
     private LD_SP_HL(): number {
+        this.updateDevices();
         this._sp = get_hl(this._state);
         return 8;
     }
@@ -2540,12 +2665,14 @@ class CPUContext {
     private LD_A_MA16(args: Uint8Array): number {
         const addr = leTo16Bit(args[0], args[1]);
         const val = this._mmu.read_byte(addr);
+        this.updateDevices();
         this._state.a = val;
         return 16;
     }
 
     //0xFB : EI
     private EI(): number {
+        console.log("Enable interrupts");
         this._interrupt_enable_pending = true;
         return 4;
     }

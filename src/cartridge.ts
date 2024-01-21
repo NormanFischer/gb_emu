@@ -67,7 +67,10 @@ abstract class Cartridge {
         if(offset > 0x3FFF) {
             console.error("Bank B Read error");
         }
-        //console.log("Read bank b: " + (this._bankB + offset).toString(16) + " addr = " + addr.toString(16));
+        const val = this.romBuf[this.bankB + offset];
+        if (typeof val === "undefined") {
+            console.log("Undefined read");
+        }
         return this.romBuf[this.bankB + offset];
     }
 

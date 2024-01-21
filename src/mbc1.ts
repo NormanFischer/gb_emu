@@ -16,14 +16,15 @@ class MBC1 extends Cartridge {
     }
 
     public writeBankA(addr: number, val: number) {
-        //super.writeBankA(addr, val);
+        super.writeBankA(addr, val);
         if(addr < 0x2000 && (val & 0xF) === 0xA) {
+            console.log("Ram enabled");
             this.ramEnabled = true;
         } else if(addr < 0x2000 && (val & 0xF) !== 0xA) {
+            console.log("Ram disabled");
             this.ramEnabled = false;
         } else if(addr < 0x4000) {
             //Change our bank B
-            console.log("Changing to bank: " + val);
             let bankNum;
             if(val === 0 || val === 0x20 || val === 0x40 || val === 0x60) {
                 bankNum = val + 1; 
@@ -34,12 +35,13 @@ class MBC1 extends Cartridge {
             if(this.bankingMode) {
                 bankNum = (this.bankExtern << 5) + bankNum;
             }
-            super.bankB = 0x4000 * bankNum;
+            console.log("Changing to bank: " + bankNum + " (wrote " + val.toString(16) + " to @" + addr.toString(16) + ")");
+            super.bankB = 0x4000 * (bankNum & 0b11111);
         }
     }
 
     public writeBankB(addr: number, val: number) {
-        //super.writeBankB(addr, val);
+        super.writeBankB(addr, val);
         console.log("Write bank b");
         if(addr < 0x6000) {
             super.bankExtern = val & 0b11;

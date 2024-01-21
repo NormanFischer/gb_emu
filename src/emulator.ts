@@ -19,7 +19,7 @@ class Emulator {
         gameScreenCanvasContext: CanvasRenderingContext2D,
         backgroundCanvasContext: CanvasRenderingContext2D,
         debug: boolean) {
-        this._cpu = new CPUContext(romData);
+        this._cpu = new CPUContext(romData, this.update_devices.bind(this));
         this.vramCanvasContext = vramCanvasContext;
         this.gameScreenCanvasContext = gameScreenCanvasContext;
         this.backgroundCanvasContext = backgroundCanvasContext;
@@ -38,7 +38,6 @@ class Emulator {
         let currentCycles = 0;
         while(currentCycles < CYCLES_PER_FRAME && this._cpu.isRunning) {
             const stepCycles = this.cpu_step();
-            this._cpu.pc &= 65535;
             if(stepCycles === -1) {
                 console.log("Stopping");
                 return;
@@ -50,17 +49,30 @@ class Emulator {
         this.updateState(this._cpu.state.a, this.cpu.pc);
 
         //Update vram map
-        this._cpu.mmu.ppu.put_vram_image(this.vramCanvasContext);
+        //this._cpu.mmu.ppu.put_vram_image(this.vramCanvasContext);
         if(this._cpu.isRunning && !this.debug) {
             requestAnimationFrame(() => this.emu_step());
         }
     }
 
+    //This is called every cycle
+    //1 cpu cycle = 4 ppu/apu/timer cycles
+    public update_devices() {
+        for(let i = 0; i < 4; i++) {
+            this._cpu.mmu.timer.update(this._cpu.mmu);
+            if(this._cpu.mmu.ppu.enabled) {
+                this._cpu.mmu.ppu.ppu_step(this._cpu.mmu, this._frameData, this._backgroundData);
+            }
+        }
+        this._cpu.mmu.dma_step();
+    }
+
     private cpu_step(): number {
         let cycles;
-
         if(!this._cpu.isHalted) {
             const opcode = this.fetch_opcode();
+            this.update_devices();
+            this._cpu.pc &= 65535;
             if(!this.cpu.instructions[opcode]) {
                 console.error("Invalid opcode found: " + opcode.toString(16) + " pc = " + this._cpu.pc.toString(16));
                 console.error("Rom bank = " + this._cpu.mmu.rom.bankB.toString(16));
@@ -70,12 +82,13 @@ class Emulator {
             //console.log("instr: " + (this._cpu.pc - 1).toString(16) + " -- opcode: 0x" + opcode.toString(16));
             const args = this.fetch_args(opcode);
             cycles = this._cpu.execute_instruction(opcode, args);
+            this._cpu.pc &= 65535;
             //Halt bug
             if(opcode === 0x76 && this._cpu.IME === false && ((this._cpu.mmu.read_byte(0xFFFF) & this._cpu.mmu.read_byte(0xFF0F)) !== 0)) {
                 console.log("Halt bug");
                 this._cpu.isHalted = false;
             }
-            
+
             if(!this._cpu.isHalted && this._cpu.IME) {
                 //Hanlde interrupts
                 interrupt_handler(this);
@@ -88,21 +101,17 @@ class Emulator {
             }
 
         } else {
+            this.update_devices();
             cycles = 1;
             //Wait for IE & IF register to be marked
             if(this._cpu.mmu.read_byte(0xFFFF) & this._cpu.mmu.read_byte(0xFF0F) & 0x1F) {
                 this._cpu.isHalted = false;
             }
         }
-        this._cpu.mmu.timer.update(this._cpu.mmu, cycles);
-        //Frame rendering
-        if(this._cpu.mmu.ppu.enabled) {
-            this._cpu.mmu.ppu.ppu_step(this._cpu.mmu, cycles, this._frameData, this._backgroundData);
-        }
+
         if(this._cpu.mmu.ppu.mode === 1) {
             this.gameScreenCanvasContext.putImageData(this._frameData, 0, 0);
             //this.backgroundCanvasContext.putImageData(this._backgroundData, 0, 0);
-            request_interrupt(this._cpu.mmu, 0);
         }
         return cycles;
     }
@@ -124,9 +133,15 @@ class Emulator {
         if(argLen === 0) {
             return new Uint8Array([]);
         } else if (argLen === 1) {
-            return new Uint8Array([this._cpu.mmu.read_byte(this._cpu.pc++)]);
+            const arg = this._cpu.mmu.read_byte(this._cpu.pc++);
+            this.update_devices();
+            return new Uint8Array([arg]);
         } else if (argLen === 2) {
-            return new Uint8Array([this._cpu.mmu.read_byte(this._cpu.pc++), this._cpu.mmu.read_byte(this._cpu.pc++)]);
+            const arg1 = this._cpu.mmu.read_byte(this._cpu.pc++);
+            this.update_devices();
+            const arg2 = this._cpu.mmu.read_byte(this._cpu.pc++)
+            this.update_devices();
+            return new Uint8Array([arg1, arg2]);
         } else {
             console.error("Invalid argLength found");
             return new Uint8Array;

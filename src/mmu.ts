@@ -20,7 +20,10 @@ class MMU {
     serial_buf: string;
     timer: Timer;
 
+    audioPlaceHolder: number;
+
     //Joypad controls
+    joypadUpperNibble: number;
     buttonNibble: number;
     dpadNibble: number;
     buttonSelect: boolean;
@@ -45,13 +48,15 @@ class MMU {
         this.io = new IO();
         this.hram = new HRAM();
         this.ie = 0;
-        this.if = 0;
+        this.if = 0xE1;
         this.serial_data = 0;
         this.serial_buf = "";
         this.timer = new Timer();
+        this.joypadUpperNibble = 0b1100;
         this.buttonNibble = 0b1111;
         this.dpadNibble = 0b1111;
         this.buttonSelect = false;
+        this.audioPlaceHolder = 0;
     }
 
     read_byte(addr: number): number {
@@ -74,17 +79,22 @@ class MMU {
             //echo ram
             return this.rom.wramRead(addr - 0x2000);
         } else if (addr < 0xFEA0) {
-            //oam read todo: dma transfer stuff
+            if(this.dma_transfer) {
+                return 0xFF;
+            }
             return this.ppu.oam_read(addr);
         } else if (addr < 0xFF00) {
-            //console.log("Reserved unusable read denied...");
             return 0xff;
         } else if (addr < 0xFF80) {
+            if(addr === 0xFF26) {
+                return this.audioPlaceHolder;
+            }
+
             if(addr === 0xFF00) {
                 if(this.buttonSelect) {
-                    return 0b100000 | this.buttonNibble;
+                    return (this.joypadUpperNibble << 4) | this.buttonNibble;
                 } else {
-                    return 0b010000 | this.dpadNibble;
+                    return (this.joypadUpperNibble << 4) | this.dpadNibble;
                 }
             }
 
@@ -92,7 +102,11 @@ class MMU {
                 return this.timer.timer_read(addr);
             }
 
-            if(addr == 0xFF44 || addr == 0xFF41 || addr === 0xFF42 || addr === 0xFF43 || addr === 0xFF40) {
+            if(addr === 0xFF47) {
+                console.log("READ PALETTE");
+            }
+
+            if(addr == 0xFF45 || addr == 0xFF44 || addr == 0xFF41 || addr == 0xFF42 || addr == 0xFF43 || addr === 0xFF40 || addr === 0xFF4A || addr === 0xFF4B) {
                 return this.ppu.io_read(addr);
             }
             if(addr === 0xFF0F) {
@@ -102,9 +116,9 @@ class MMU {
                 return this.serial_data;
             }
             if(addr === 0xFF02) {
-                console.error("hmm");
+                return 0x7e;
             }
-            //console.log("IO read for unimplemented addr @" + addr.toString(16));
+            console.log("IO read for unimplemented addr @" + addr.toString(16));
             return 0xff;
         } else if(addr === 0xFFFF) {
             return this.ie;
@@ -137,36 +151,38 @@ class MMU {
             this.rom.wramWrite(addr - 0x2000, val);
             return;
         } else if (addr < 0xFEA0) {
-            this.ppu.oam_write(addr, val);
+            if(!this.dma_transfer) {
+                this.ppu.oam_write(addr, val);
+            }
         } else if (addr < 0xFF00) {
             console.log("Reserved unusable write denied...");
         } else if (addr < 0xFF80) {
             if(addr === 0xFF00) {
+                this.joypadUpperNibble = val >> 4;
                 //Can only write to upper nibble for joypad
                 if((val & 0b100000) >> 5 === 1) {
                     this.buttonSelect = false;
                 } else if((val & 0b010000) >> 4 === 1) {
                     this.buttonSelect = true;
-                } else {
-                    console.error("Bad case");
                 }
             }
 
             if(addr >= 0xFF04 && addr <= 0xFF07) {
-                this.timer.timer_write(addr, val);
+                this.timer.timer_write(this, addr, val);
             }
 
             if(addr == 0xFF0F) {
                 this.if = val;
                 return;
             }
-            if(addr == 0xFF45 || addr == 0xFF44 || addr == 0xFF41 || addr == 0xFF42 || addr == 0xFF43 || addr === 0xFF40) {
-                this.ppu.io_write(addr, val);
+            if(addr == 0xFF45 || addr == 0xFF44 || addr == 0xFF41 || addr == 0xFF42 || addr == 0xFF43 || addr === 0xFF40 || addr === 0xFF4A || addr === 0xFF4B) {
+                this.ppu.io_write(addr, val, this);
                 return;
             }
             if(addr === 0xFF46) {
                 //DMA Transfer subroutine
-                this.dma_transfer(val);
+                this.dma_enabled = true;
+                this.dma_addr = val << 8;
                 return;
             }
             if(addr === 0xFF01) {
@@ -192,10 +208,25 @@ class MMU {
         }
     }
 
-    dma_transfer(val: number) {
-        const addr = val << 8;
-        for(let i = 0; i < 0xA0; i++) {
-            this.write_byte(0xFE00 + i, this.read_byte(addr + i));
+    private dma_clock = 0;
+    private dma_enabled = false;
+    private dma_transfer = false;
+    private dma_addr = 0xFF;
+    dma_step() {
+        if(this.dma_enabled) {
+            console.assert(this.dma_addr !== 0x00);
+            //Two clock delay
+            if(this.dma_clock >= 2) {
+                this.dma_transfer = true;
+                const dma_byte = this.read_byte(this.dma_addr + this.dma_clock - 2);
+                const dst = 0xFE00 + (this.dma_clock - 2);
+                this.ppu.oam_write(dst, dma_byte);
+            }
+            if(this.dma_clock++ > 0xA0) {
+                this.dma_clock = 0;
+                this.dma_transfer = false;
+                this.dma_enabled = false;
+            } 
         }
     }
     
