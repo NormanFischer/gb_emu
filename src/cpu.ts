@@ -292,7 +292,7 @@ class CPUContext {
         0x03: () => { this._state.e = this.cb_rlc(this._state.e); return 8; },
         0x04: () => { this._state.h = this.cb_rlc(this._state.h); return 8; },
         0x05: () => { this._state.l = this.cb_rlc(this._state.l); return 8; },
-        0x06: () => { const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_rlc(this._mmu.read_byte(addr))); return 16; },
+        0x06: () => { const addr = get_hl(this._state); const rlc = this.cb_rlc(this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, rlc); this.updateDevices(); return 16; },
         0x07: () => { this._state.a = this.cb_rlc(this._state.a); return 8; },
 
         //RRC
@@ -302,7 +302,7 @@ class CPUContext {
         0x0B: () => { this._state.e = this.cb_rrc(this._state.e); return 8; },
         0x0C: () => { this._state.h = this.cb_rrc(this._state.h); return 8; },
         0x0D: () => { this._state.l = this.cb_rrc(this._state.l); return 8; },
-        0x0E: () => { const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_rrc(this._mmu.read_byte(addr))); return 16; },
+        0x0E: () => { const addr = get_hl(this._state); const rrc = this.cb_rrc(this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, rrc); this.updateDevices(); return 16;  },
         0x0F: () => { this._state.a = this.cb_rrc(this._state.a); return 8; },
 
         //RL
@@ -312,7 +312,7 @@ class CPUContext {
         0x13: () => { this._state.e = this.cb_rl(this._state.e); return 8; },
         0x14: () => { this._state.h = this.cb_rl(this._state.h); return 8; },
         0x15: () => { this._state.l = this.cb_rl(this._state.l); return 8; },
-        0x16: () => { const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_rl(this._mmu.read_byte(addr))); return 16; },
+        0x16: () => { const addr = get_hl(this._state); const rl = this.cb_rl(this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, rl); this.updateDevices(); return 16; },
         0x17: () => { this._state.a = this.cb_rl(this._state.a); return 8; },
 
         //RR
@@ -322,7 +322,7 @@ class CPUContext {
         0x1B: () => { this._state.e = this.cb_rr(this._state.e); return 8; },
         0x1C: () => { this._state.h = this.cb_rr(this._state.h); return 8; },
         0x1D: () => { this._state.l = this.cb_rr(this._state.l); return 8; },
-        0x1E: () => { const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_rr(this._mmu.read_byte(addr))); return 16; },
+        0x1E: () => { const addr = get_hl(this._state); const rr = this.cb_rr(this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, rr); this.updateDevices(); return 16;  },
         0x1F: () => { this._state.a = this.cb_rr(this._state.a); return 8; },
 
         //SLA
@@ -332,7 +332,7 @@ class CPUContext {
         0x23: () => { this._state.e = this.cb_sla(this._state.e); return 8; },
         0x24: () => { this._state.h = this.cb_sla(this._state.h); return 8; },
         0x25: () => { this._state.l = this.cb_sla(this._state.l); return 8; },
-        0x26: () => { const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_sla(this._mmu.read_byte(addr))); return 16; },
+        0x26: () => { const addr = get_hl(this._state); const sla = this.cb_sla(this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, sla); this.updateDevices(); return 16;  },
         0x27: () => { this._state.a = this.cb_sla(this._state.a); return 8; },
 
         //SRA
@@ -342,7 +342,7 @@ class CPUContext {
         0x2B: () => { this._state.e = this.cb_sra(this._state.e); return 8; },
         0x2C: () => { this._state.h = this.cb_sra(this._state.h); return 8; },
         0x2D: () => { this._state.l = this.cb_sra(this._state.l); return 8; },
-        0x2E: () => { const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_sra(this._mmu.read_byte(addr))); return 16; },
+        0x2E: () => { const addr = get_hl(this._state); const sra = this.cb_sra(this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, sra); this.updateDevices(); return 16;  },
         0x2F: () => { this._state.a = this.cb_sra(this._state.a); return 8; },
 
         //SWAP
@@ -352,7 +352,7 @@ class CPUContext {
         0x33: () => { this._state.e = this.cb_swap(this._state.e); return 8; },
         0x34: () => { this._state.h = this.cb_swap(this._state.h); return 8; },
         0x35: () => { this._state.l = this.cb_swap(this._state.l); return 8; },
-        0x36: () => { const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_swap(this._mmu.read_byte(addr))); return 16; },
+        0x36: () => { const addr = get_hl(this._state); const swap = this.cb_swap(this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, swap); this.updateDevices(); return 16;  },
         0x37: () => { this._state.a = this.cb_swap(this._state.a); return 8; },
 
         //SRL
@@ -362,7 +362,7 @@ class CPUContext {
         0x3B: () => { this._state.e = this.cb_srl(this._state.e); return 8; },
         0x3C: () => { this._state.h = this.cb_srl(this._state.h); return 8; },
         0x3D: () => { this._state.l = this.cb_srl(this._state.l); return 8; },
-        0x3E: () => { const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_srl(this._mmu.read_byte(addr))); return 16; },
+        0x3E: () => { const addr = get_hl(this._state); const srl = this.cb_srl(this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, srl); this.updateDevices(); return 16;  },
         0x3F: () => { this._state.a = this.cb_srl(this._state.a); return 8; },
 
         //BIT 0
@@ -372,7 +372,7 @@ class CPUContext {
         0x43: () => { this.bit(0, this._state.e); return 8; },
         0x44: () => { this.bit(0, this._state.h); return 8; },
         0x45: () => { this.bit(0, this._state.l); return 8; },
-        0x46: () => { this.bit(0, this._mmu.read_byte(get_hl(this._state))); return 12; },
+        0x46: () => { this.bit(0, this._mmu.read_byte(get_hl(this._state))); this.updateDevices(); return 12; },
         0x47: () => { this.bit(0, this._state.a); return 8; },
 
         //BIT 1
@@ -382,7 +382,7 @@ class CPUContext {
         0x4B: () => { this.bit(1, this._state.e); return 8; },
         0x4C: () => { this.bit(1, this._state.h); return 8; }, 
         0x4D: () => { this.bit(1, this._state.l); return 8; },
-        0x4E: () => { this.bit(1, this._mmu.read_byte(get_hl(this._state))); return 12; },
+        0x4E: () => { this.bit(1, this._mmu.read_byte(get_hl(this._state))); this.updateDevices(); return 12; },
         0x4F: () => { this.bit(1, this._state.a); return 8; },
 
         //BIT 2
@@ -392,7 +392,7 @@ class CPUContext {
         0x53: () => { this.bit(2, this._state.e); return 8; },
         0x54: () => { this.bit(2, this._state.h); return 8; },
         0x55: () => { this.bit(2, this._state.l); return 8; },
-        0x56: () => { this.bit(2, this._mmu.read_byte(get_hl(this._state))); return 12; },
+        0x56: () => { this.bit(2, this._mmu.read_byte(get_hl(this._state))); this.updateDevices(); return 12; },
         0x57: () => { this.bit(2, this._state.a); return 8; },
 
         //BIT 3
@@ -402,7 +402,7 @@ class CPUContext {
         0x5B: () => { this.bit(3, this._state.e); return 8; },
         0x5C: () => { this.bit(3, this._state.h); return 8; },
         0x5D: () => { this.bit(3, this._state.l); return 8; },
-        0x5E: () => { this.bit(3, this._mmu.read_byte(get_hl(this._state))); return 12; },
+        0x5E: () => { this.bit(3, this._mmu.read_byte(get_hl(this._state))); this.updateDevices(); return 12; },
         0x5F: () => { this.bit(3, this._state.a); return 8; },
 
         //BIT 4
@@ -412,7 +412,7 @@ class CPUContext {
         0x63: () => { this.bit(4, this._state.e); return 8; },
         0x64: () => { this.bit(4, this._state.h); return 8; },
         0x65: () => { this.bit(4, this._state.l); return 8; },
-        0x66: () => { this.bit(4, this._mmu.read_byte(get_hl(this._state))); return 12; },
+        0x66: () => { this.bit(4, this._mmu.read_byte(get_hl(this._state))); this.updateDevices(); return 12; },
         0x67: () => { this.bit(4, this._state.a); return 8; },
 
         //BIT 5
@@ -422,7 +422,7 @@ class CPUContext {
         0x6B: () => { this.bit(5, this._state.e); return 8; },
         0x6C: () => { this.bit(5, this._state.h); return 8; },
         0x6D: () => { this.bit(5, this._state.l); return 8; },
-        0x6E: () => { this.bit(5, this._mmu.read_byte(get_hl(this._state))); return 12; },
+        0x6E: () => { this.bit(5, this._mmu.read_byte(get_hl(this._state))); this.updateDevices(); return 12; },
         0x6F: () => { this.bit(5, this._state.a); return 8; },
 
         //BIT 6
@@ -432,7 +432,7 @@ class CPUContext {
         0x73: () => { this.bit(6, this._state.e); return 8; },
         0x74: () => { this.bit(6, this._state.h); return 8; },
         0x75: () => { this.bit(6, this._state.l); return 8; },
-        0x76: () => { this.bit(6, this._mmu.read_byte(get_hl(this._state))); return 12; },
+        0x76: () => { this.bit(6, this._mmu.read_byte(get_hl(this._state))); this.updateDevices(); return 12; },
         0x77: () => { this.bit(6, this._state.a); return 8; },
 
         //BIT 7
@@ -442,7 +442,7 @@ class CPUContext {
         0x7B: () => { this.bit(7, this._state.e); return 8; },
         0x7C: () => { this.bit(7, this._state.h); return 8; },
         0x7D: () => { this.bit(7, this._state.l); return 8; },
-        0x7E: () => { this.bit(7, this._mmu.read_byte(get_hl(this._state))); return 12; },
+        0x7E: () => { this.bit(7, this._mmu.read_byte(get_hl(this._state))); this.updateDevices(); return 12; },
         0x7F: () => { this.bit(7, this._state.a); return 8; },
 
         //RES 0
@@ -452,7 +452,7 @@ class CPUContext {
         0x83: () => {this._state.e = this.cb_res(0, this._state.e); return 8; },
         0x84: () => {this._state.h = this.cb_res(0, this._state.h); return 8; },
         0x85: () => {this._state.l = this.cb_res(0, this._state.l); return 8; },
-        0x86: () => {const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_res(0, this._mmu.read_byte(addr))); return 16; },
+        0x86: () => {const addr = get_hl(this._state); const res = this.cb_res(0, this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, res); this.updateDevices(); return 16; },
         0x87: () => {this._state.a = this.cb_res(0, this._state.a); return 8; },
 
         //RES 1
@@ -462,7 +462,7 @@ class CPUContext {
         0x8B: () => {this._state.e = this.cb_res(1, this._state.e); return 8; },
         0x8C: () => {this._state.h = this.cb_res(1, this._state.h); return 8; },
         0x8D: () => {this._state.l = this.cb_res(1, this._state.l); return 8; },
-        0x8E: () => {const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_res(1, this._mmu.read_byte(addr))); return 16; },
+        0x8E: () => {const addr = get_hl(this._state); const res = this.cb_res(1, this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, res); this.updateDevices(); return 16;  },
         0x8F: () => {this._state.a = this.cb_res(1, this._state.a); return 8; },
 
         //RES 2
@@ -472,7 +472,7 @@ class CPUContext {
         0x93: () => {this._state.e = this.cb_res(2, this._state.e); return 8; },
         0x94: () => {this._state.h = this.cb_res(2, this._state.h); return 8; },
         0x95: () => {this._state.l = this.cb_res(2, this._state.l); return 8; },
-        0x96: () => {const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_res(2, this._mmu.read_byte(addr))); return 16; },
+        0x96: () => {const addr = get_hl(this._state); const res = this.cb_res(2, this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, res); this.updateDevices(); return 16;  },
         0x97: () => {this._state.a = this.cb_res(2, this._state.a); return 8; },
 
         //RES 3
@@ -482,7 +482,7 @@ class CPUContext {
         0x9B: () => {this._state.e = this.cb_res(3, this._state.e); return 8; },
         0x9C: () => {this._state.h = this.cb_res(3, this._state.h); return 8; },
         0x9D: () => {this._state.l = this.cb_res(3, this._state.l); return 8; },
-        0x9E: () => {const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_res(3, this._mmu.read_byte(addr))); return 16; },
+        0x9E: () => {const addr = get_hl(this._state); const res = this.cb_res(3, this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, res); this.updateDevices(); return 16;  },
         0x9F: () => {this._state.a = this.cb_res(3, this._state.a); return 8; },
 
         //RES 4
@@ -492,7 +492,7 @@ class CPUContext {
         0xA3: () => {this._state.e = this.cb_res(4, this._state.e); return 8; },
         0xA4: () => {this._state.h = this.cb_res(4, this._state.h); return 8; },
         0xA5: () => {this._state.l = this.cb_res(4, this._state.l); return 8; },
-        0xA6: () => {const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_res(4, this._mmu.read_byte(addr))); return 16; },
+        0xA6: () => {const addr = get_hl(this._state); const res = this.cb_res(4, this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, res); this.updateDevices(); return 16;  },
         0xA7: () => {this._state.a = this.cb_res(4, this._state.a); return 8; },
 
         //RES 5
@@ -502,7 +502,7 @@ class CPUContext {
         0xAB: () => {this._state.e = this.cb_res(5, this._state.e); return 8; },
         0xAC: () => {this._state.h = this.cb_res(5, this._state.h); return 8; },
         0xAD: () => {this._state.l = this.cb_res(5, this._state.l); return 8; },
-        0xAE: () => {const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_res(5, this._mmu.read_byte(addr))); return 16; },
+        0xAE: () => {const addr = get_hl(this._state); const res = this.cb_res(5, this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, res); this.updateDevices(); return 16; },
         0xAF: () => {this._state.a = this.cb_res(5, this._state.a); return 8; },
 
         //RES 6
@@ -512,7 +512,7 @@ class CPUContext {
         0xB3: () => {this._state.e = this.cb_res(6, this._state.e); return 8; },
         0xB4: () => {this._state.h = this.cb_res(6, this._state.h); return 8; },
         0xB5: () => {this._state.l = this.cb_res(6, this._state.l); return 8; },
-        0xB6: () => {const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_res(6, this._mmu.read_byte(addr))); return 16; },
+        0xB6: () => {const addr = get_hl(this._state); const res = this.cb_res(6, this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, res); this.updateDevices(); return 16;  },
         0xB7: () => {this._state.a = this.cb_res(6, this._state.a); return 8; },
 
         //RES 7
@@ -522,7 +522,7 @@ class CPUContext {
         0xBB: () => {this._state.e = this.cb_res(7, this._state.e); return 8; },
         0xBC: () => {this._state.h = this.cb_res(7, this._state.h); return 8; },
         0xBD: () => {this._state.l = this.cb_res(7, this._state.l); return 8; },
-        0xBE: () => {const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_res(7, this._mmu.read_byte(addr))); return 16; },
+        0xBE: () => {const addr = get_hl(this._state); const res = this.cb_res(7, this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, res); this.updateDevices(); return 16;  },
         0xBF: () => {this._state.a = this.cb_res(7, this._state.a); return 8; },
 
         //SET 0
@@ -532,7 +532,7 @@ class CPUContext {
         0xC3: () => {this._state.e = this.cb_set(0, this._state.e); return 8; },
         0xC4: () => {this._state.h = this.cb_set(0, this._state.h); return 8; },
         0xC5: () => {this._state.l = this.cb_set(0, this._state.l); return 8; },
-        0xC6: () => {const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_set(0, this._mmu.read_byte(addr))); return 16; },
+        0xC6: () => {const addr = get_hl(this._state); const set = this.cb_set(0, this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, set); this.updateDevices(); return 16; },
         0xC7: () => {this._state.a = this.cb_set(0, this._state.a); return 8; },
 
         //SET 1
@@ -542,7 +542,7 @@ class CPUContext {
         0xCB: () => {this._state.e = this.cb_set(1, this._state.e); return 8; },
         0xCC: () => {this._state.h = this.cb_set(1, this._state.h); return 8; },
         0xCD: () => {this._state.l = this.cb_set(1, this._state.l); return 8; },
-        0xCE: () => {const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_set(1, this._mmu.read_byte(addr))); return 16; },
+        0xCE: () => {const addr = get_hl(this._state); const set = this.cb_set(1, this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, set); this.updateDevices(); return 16; },
         0xCF: () => {this._state.a = this.cb_set(1, this._state.a); return 8; },
 
         //SET 2
@@ -552,7 +552,7 @@ class CPUContext {
         0xD3: () => {this._state.e = this.cb_set(2, this._state.e); return 8; },
         0xD4: () => {this._state.h = this.cb_set(2, this._state.h); return 8; },
         0xD5: () => {this._state.l = this.cb_set(2, this._state.l); return 8; },
-        0xD6: () => {const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_set(2, this._mmu.read_byte(addr))); return 16; },
+        0xD6: () => {const addr = get_hl(this._state); const set = this.cb_set(2, this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, set); this.updateDevices(); return 16; },
         0xD7: () => {this._state.a = this.cb_set(2, this._state.a); return 8; },
 
         //SET 3
@@ -562,7 +562,7 @@ class CPUContext {
         0xDB: () => {this._state.e = this.cb_set(3, this._state.e); return 8; },
         0xDC: () => {this._state.h = this.cb_set(3, this._state.h); return 8; },
         0xDD: () => {this._state.l = this.cb_set(3, this._state.l); return 8; },
-        0xDE: () => {const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_set(3, this._mmu.read_byte(addr))); return 16; },
+        0xDE: () => {const addr = get_hl(this._state); const set = this.cb_set(3, this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, set); this.updateDevices(); return 16; },
         0xDF: () => {this._state.a = this.cb_set(3, this._state.a); return 8; },
 
         //SET 4
@@ -572,7 +572,7 @@ class CPUContext {
         0xE3: () => {this._state.e = this.cb_set(4, this._state.e); return 8; },
         0xE4: () => {this._state.h = this.cb_set(4, this._state.h); return 8; },
         0xE5: () => {this._state.l = this.cb_set(4, this._state.l); return 8; },
-        0xE6: () => {const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_set(4, this._mmu.read_byte(addr))); return 16; },
+        0xE6: () => {const addr = get_hl(this._state); const set = this.cb_set(4, this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, set); this.updateDevices(); return 16; },
         0xE7: () => {this._state.a = this.cb_set(4, this._state.a); return 8; },
 
         //SET 5
@@ -582,7 +582,7 @@ class CPUContext {
         0xEB: () => {this._state.e = this.cb_set(5, this._state.e); return 8; },
         0xEC: () => {this._state.h = this.cb_set(5, this._state.h); return 8; },
         0xED: () => {this._state.l = this.cb_set(5, this._state.l); return 8; },
-        0xEE: () => {const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_set(5, this._mmu.read_byte(addr))); return 16; },
+        0xEE: () => {const addr = get_hl(this._state); const set = this.cb_set(5, this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, set); this.updateDevices(); return 16; },
         0xEF: () => {this._state.a = this.cb_set(5, this._state.a); return 8; },
 
         //SET 6
@@ -592,7 +592,7 @@ class CPUContext {
         0xF3: () => {this._state.e = this.cb_set(6, this._state.e); return 8; },
         0xF4: () => {this._state.h = this.cb_set(6, this._state.h); return 8; },
         0xF5: () => {this._state.l = this.cb_set(6, this._state.l); return 8; },
-        0xF6: () => {const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_set(6, this._mmu.read_byte(addr))); return 16; },
+        0xF6: () => {const addr = get_hl(this._state); const set = this.cb_set(6, this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, set); this.updateDevices(); return 16; },
         0xF7: () => {this._state.a = this.cb_set(6, this._state.a); return 8; },
 
         //SET 7
@@ -602,7 +602,7 @@ class CPUContext {
         0xFB: () => {this._state.e = this.cb_set(7, this._state.e); return 8; },
         0xFC: () => {this._state.h = this.cb_set(7, this._state.h); return 8; },
         0xFD: () => {this._state.l = this.cb_set(7, this._state.l); return 8; },
-        0xFE: () => {const addr = get_hl(this._state); this._mmu.write_byte(addr, this.cb_set(7, this._mmu.read_byte(addr))); return 16; },
+        0xFE: () => {const addr = get_hl(this._state); const set = this.cb_set(7, this._mmu.read_byte(addr)); this.updateDevices(); this._mmu.write_byte(addr, set); this.updateDevices(); return 16; },
         0xFF: () => {this._state.a = this.cb_set(7, this._state.a); return 8; },
     };
 
@@ -2337,12 +2337,13 @@ class CPUContext {
 
     //0xCB : CB
     private CB(args: Uint8Array): number {
+        // if(((args[0]) & 0xF) === 0x06 || ((args[0]) & 0xF) === 0x0E) {
+        //     this.updateDevices();
+        //     if((((args[0]) >> 4) !== 0x4) && (((args[0]) >> 4) !== 0x5) && (((args[0]) >> 4) !== 0x6) && (((args[0]) >> 4) !== 0x7)) {
+        //         this.updateDevices();
+        //     }   
+        // }
         const val = this.cb[args[0]]();
-        if(((args[0]) & 0xF) === 0x06 || ((args[0]) & 0xF) === 0x0E) {
-            if((((args[0]) >> 4) !== 0x4) && (((args[0]) >> 4) !== 0x5) && (((args[0]) >> 4) !== 0x6) && (((args[0]) >> 4) !== 0x7)) {
-                this.updateDevices();
-            }   
-        }
         return val;
     }
 
