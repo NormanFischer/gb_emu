@@ -1766,7 +1766,7 @@ class CPUContext {
 
     //0x76 : HALT
     private HALT(): number {
-        console.log("HALT IME = " + this.IME);
+        console.log("Halted");
         this._isHalted = true;
         return 4;
     }
@@ -2677,7 +2677,15 @@ class CPUContext {
     //0xFB : EI
     private EI(): number {
         console.log("Enable interrupts");
-        this._interrupt_enable_pending = true;
+
+        //Hack
+        if(this.mmu.read_byte(this._pc) !== 0x76) {
+            this._interrupt_enable_pending = true;
+        } else {
+            console.log("EI edge case");
+            this.IME = true;
+        }
+        
         return 4;
     }
 

@@ -464,6 +464,7 @@ class PPU {
         switch(this.mode) {
             //OAM
             case PPU_MODE_OAM:
+                this.check_stat(mmu, ((this._lcdStat & 0b11111100) | 0b10));
                 if(this._modeTime >= PPU_OAM_ACCESS_TIME) {
                     this._modeTime = 0;
                     this.mode = PPU_MODE_VRAM;
@@ -471,14 +472,15 @@ class PPU {
                 break;
             //VRAM
             case PPU_MODE_VRAM:
+                this.check_stat(mmu, ((this._lcdStat & 0b11111100) | 0b11));
                 if(this._modeTime >= PPU_VRAM_ACCESS_TIME) {
                     this._modeTime = 0;
                     this.mode = PPU_MODE_HBLANK;
-                    this.check_stat(mmu, ((this._lcdStat & 0b11111100) | 0b00));
                 }
                 break;
             //HBLANK
             case PPU_MODE_HBLANK:
+                this.check_stat(mmu, ((this._lcdStat & 0b11111100) | 0b00));
                 if(this._modeTime >= PPU_HBLANK_TIME) {
                     this._modeTime = 0;
                     //Render scanline here
@@ -486,21 +488,21 @@ class PPU {
                     this.render_oam(frameData);
                     this._currentLine++;
                     this.check_stat(mmu, ((this._lcdStat & 0b11111011) | ((this._currentLine === this._lyc ? 1 : 0 ) << 2)));
-
                     if(this._currentLine === DISPLAY_LINES) {
                         //Vblank time!
                         this.mode = PPU_MODE_VBLANK;
                         request_interrupt(mmu, 0);
                         this.put_background_image(backgroundData);
-                        this.check_stat(mmu, ((this._lcdStat & 0b11111100) | 0b01));
+                        
                     } else {
                         this.mode = PPU_MODE_OAM;
-                        this.check_stat(mmu, ((this._lcdStat & 0b11111100) | 0b10));
+                        
                     }
                 }
                 break;
             //VBLANK
             case PPU_MODE_VBLANK:
+                this.check_stat(mmu, ((this._lcdStat & 0b11111100) | 0b01));
                 if(this._modeTime >= 456) {
                     this._modeTime = 0;
                     this._currentLine++;

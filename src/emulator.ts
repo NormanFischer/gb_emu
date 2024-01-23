@@ -106,6 +106,9 @@ class Emulator {
             //Wait for IE & IF register to be marked
             if(this._cpu.mmu.read_byte(0xFFFF) & this._cpu.mmu.read_byte(0xFF0F) & 0x1F) {
                 this._cpu.isHalted = false;
+                if(this._cpu.IME) {
+                    interrupt_handler(this);
+                }
             }
         }
 

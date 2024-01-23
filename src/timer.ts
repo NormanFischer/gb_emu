@@ -46,7 +46,9 @@ class Timer {
                 this.check_timer(mmu, prev);
                 break;
             case 0xFF05:
-                this._tima = val;
+                if(!this._updateTima) {
+                    this._tima = val;
+                }
                 break;
             case 0xFF06:
                 this._tma = val;
