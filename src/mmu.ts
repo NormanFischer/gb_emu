@@ -109,6 +109,9 @@ class MMU {
             if(addr == 0xFF45 || addr == 0xFF44 || addr == 0xFF41 || addr == 0xFF42 || addr == 0xFF43 || addr === 0xFF40 || addr === 0xFF4A || addr === 0xFF4B) {
                 return this.ppu.io_read(addr);
             }
+            if(addr === 0xFF46) {
+                return this.dmaWriteVal;
+            }
             if(addr === 0xFF0F) {
                 return this.if;
             }
@@ -172,7 +175,7 @@ class MMU {
             }
 
             if(addr == 0xFF0F) {
-                this.if = val;
+                this.if = 0b11100000 | (val & 0b00011111);
                 return;
             }
             if(addr == 0xFF45 || addr == 0xFF44 || addr == 0xFF41 || addr == 0xFF42 || addr == 0xFF43 || addr === 0xFF40 || addr === 0xFF4A || addr === 0xFF4B) {
@@ -183,6 +186,7 @@ class MMU {
                 //DMA Transfer subroutine
                 this.dma_enabled = true;
                 this.dma_addr = val << 8;
+                this.dmaWriteVal = val;
                 return;
             }
             if(addr === 0xFF01) {
@@ -200,6 +204,7 @@ class MMU {
             }
             return;
         } else if(addr === 0xFFFF) {
+            console.log("Ie = " + this.ie.toString(16));
             this.ie = val;
             return;
         } else {
@@ -208,6 +213,7 @@ class MMU {
         }
     }
 
+    private dmaWriteVal = 0;
     private dma_clock = 0;
     private dma_enabled = false;
     private dma_transfer = false;
@@ -216,10 +222,10 @@ class MMU {
         if(this.dma_enabled) {
             console.assert(this.dma_addr !== 0x00);
             //Two clock delay
-            if(this.dma_clock >= 2) {
+            if(this.dma_clock >= 1) {
                 this.dma_transfer = true;
-                const dma_byte = this.read_byte(this.dma_addr + this.dma_clock - 2);
-                const dst = 0xFE00 + (this.dma_clock - 2);
+                const dma_byte = this.read_byte(this.dma_addr + this.dma_clock - 1);
+                const dst = 0xFE00 + (this.dma_clock - 1);
                 this.ppu.oam_write(dst, dma_byte);
             }
             if(this.dma_clock++ > 0xA0) {
@@ -229,21 +235,30 @@ class MMU {
             } 
         }
     }
+
+    joypad_nibble_condition(prev: number, newNibble: number) {
+        return (((prev & 0b1) === 1 && (newNibble & 0b1) === 0) ||
+        ((((prev & 0b10) >> 1)) === 1) && (((newNibble &0b10) >> 1) === 0) ||
+        ((((prev & 0b100) >> 2)) === 1) && (((newNibble &0b100) >> 2) === 0) ||
+        ((((prev & 0b1000) >> 3)) === 1) && (((newNibble &0b1000) >> 3) === 0));
+    }
     
     //User pressed a button
     joypad_set(bit: number, button: boolean) {
         //Buttons
         if(button) {
+            const prev = this.buttonNibble;
             this.buttonNibble &= ~(1 << bit);
             //console.log("Set button");
-            if(this.buttonSelect) {
+            if(this.buttonSelect && this.joypad_nibble_condition(prev, this.buttonNibble)) {
                 request_interrupt(this, 4);
             }
         } else {
             //D-pad
             //console.log("Setting dpad");
+            const prev = this.dpadNibble;
             this.dpadNibble &= ~(1 << bit);
-            if(!this.buttonSelect) {
+            if(!this.buttonSelect && this.joypad_nibble_condition(prev, this.dpadNibble)) {
                 request_interrupt(this, 4);
             }
         }

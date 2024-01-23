@@ -7,12 +7,16 @@ class Timer {
     private _tima: number;
     private _tma: number;
     private _tac: number;
+    private _delay: number;
+    private _updateTima: boolean;
 
     constructor() {
         this._divReg = 0xABCC;
         this._tima = 0;
         this._tma = 0;
         this._tac = 0xF8;
+        this._delay = 0; 
+        this._updateTima = false;
     }
 
     public get divReg(): number {
@@ -82,8 +86,11 @@ class Timer {
         //Is timer enabled
         if(update && this._tac & (1 << 2)) {
             this._tima++;
-            if(this._tima === 0xFF) {
-                this._tima = this._tma;
+            if(this._tima === 0xFF + 1) {
+                //Tima will have 0 for 4 cycles
+                this._updateTima = true;
+                this._delay = 3;
+                this._tima = 0;
                 request_interrupt(mmu, 2);
             }
         }
@@ -91,6 +98,14 @@ class Timer {
 
     public update(mmu: MMU) {
         //Update our divider
+        if(this._updateTima) {
+            if(this._delay === 0) {
+                this._tima = this._tma;
+                this._updateTima = false;
+            } else {
+                this._delay--;
+            }
+        }
         const prev = this._divReg;
         this._divReg++;
         this._divReg &= 0xFFFF;

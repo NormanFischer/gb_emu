@@ -762,18 +762,19 @@ class CPUContext {
 
     //operation logic here
     private ret_step() {
-        this.updateDevices();
         const lo = this.pop_8bit();
         this._pc = (this._pc & 0xFF00) | lo;
         this.updateDevices();
+        
         const hi = this.pop_8bit();
         this._pc = (hi << 8) | lo;
+        this.updateDevices();
         this.updateDevices();
     }
 
     private restart_step(addr: number) {
-        this.push_16bit(this._pc);
         this.updateDevices();
+        this.push_16bit(this._pc);
         this._pc = addr;
     }
 
@@ -2257,6 +2258,7 @@ class CPUContext {
 
     //0xC2 : JP_NZ_A16
     private JP_NZ_A16(args: Uint8Array) {
+        console.log("JP NZ");
         const addr = leTo16Bit(args[0], args[1]);
         if(!this.get_zero()) {
             this.updateDevices();
@@ -2463,7 +2465,8 @@ class CPUContext {
     private RETI(): number {
         console.log("RETI @" + this._pc.toString(16));
         this.ret_step();
-        this.interrupt_enable_pending = true;
+        //Ret step already caused cycle delay, so we can just enable it here
+        this.IME = true;
         return 16;
     }
 

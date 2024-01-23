@@ -14,12 +14,12 @@ const ADDR_TIMER = 0x50;
 const ADDR_SERIAL = 0x58;
 const ADDR_JOYPAD = 0x60;
 
-function push_interrupt(updateDevices: Function, emu: Emulator, addr: number) {
-    updateDevices();
-    updateDevices();
+function push_interrupt(emu: Emulator, addr: number) {
+    emu.update_devices();
+    emu.update_devices();
     emu.cpu.push_16bit(emu.cpu.pc);
     emu.cpu.pc = addr;
-    updateDevices();
+    emu.update_devices();
 }
 
 function interrupt_handler(emu: Emulator) {
@@ -29,29 +29,30 @@ function interrupt_handler(emu: Emulator) {
     if((IE & (1 << I_VBLANK)) && (IF & (1 << I_VBLANK))) {
         emu.cpu.IME = false;
         emu.cpu.mmu.write_byte(0xFF0F, IF & ~(1 << I_VBLANK));
-        push_interrupt(emu.update_devices.bind(emu), emu, ADDR_VBLANK);
+        push_interrupt(emu, ADDR_VBLANK);
         return;
     } else if((IE & (1 << I_LCD)) && (IF & (1 << I_LCD))) {
         emu.cpu.IME = false;
         emu.cpu.mmu.write_byte(0xFF0F, IF & ~(1 << I_LCD));
         console.log("Stat interrupt");
-        push_interrupt(emu.update_devices.bind(emu), emu, ADDR_STAT);
+        push_interrupt(emu, ADDR_STAT);
         return;
     } else if((IE & (1 << I_TIMER)) && (IF & (1 << I_TIMER))) {
         emu.cpu.IME = false;
         emu.cpu.mmu.write_byte(0xFF0F, IF & ~(1 << I_TIMER));
         console.log("Timer interrupt");
-        push_interrupt(emu.update_devices.bind(emu), emu, ADDR_TIMER);
+        push_interrupt(emu, ADDR_TIMER);
         return;
     } else if((IE & (1 << I_SERIAL)) && (IF & (1 << I_SERIAL))) {
+        console.log("Serial interrupt");
         emu.cpu.IME = false;
         emu.cpu.mmu.write_byte(0xFF0F, IF & ~(1 << I_SERIAL));
-        push_interrupt(emu.update_devices.bind(emu), emu, ADDR_SERIAL);
+        push_interrupt(emu, ADDR_SERIAL);
         return;
     } else if((IE & (1 << I_JOYPAD)) && (IF & (1 << I_JOYPAD))) {
         emu.cpu.IME = false;
         emu.cpu.mmu.write_byte(0xFF0F, IF & ~(1 << I_JOYPAD));
-        push_interrupt(emu.update_devices.bind(emu), emu, ADDR_JOYPAD);
+        push_interrupt(emu, ADDR_JOYPAD);
         return;
     }
 }

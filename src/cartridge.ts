@@ -1,5 +1,6 @@
 abstract class Cartridge {
     _cartridgeType: string;
+    _sizeKB: number
     romBuf: Uint8Array;
     numRomBanks: number;
     
@@ -28,6 +29,15 @@ abstract class Cartridge {
         this.wram = new Uint8Array(0x1FFF + 1);
         this.externRam = new Array();
         this.numRomBanks = Math.pow(2, this.romBuf[0x148] + 1);
+        this._sizeKB = romBuf[0x148];
+    }
+
+    public get sizeKB(): number {
+        return this._sizeKB;
+    }
+
+    public set sizeKB(sizeKB: number) {
+        this._sizeKB = sizeKB;
     }
 
     public get cartridgeType(): string {

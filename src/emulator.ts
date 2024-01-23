@@ -58,17 +58,18 @@ class Emulator {
     //This is called every cycle
     //1 cpu cycle = 4 ppu/apu/timer cycles
     public update_devices() {
+        this._cpu.mmu.dma_step();
         for(let i = 0; i < 4; i++) {
             this._cpu.mmu.timer.update(this._cpu.mmu);
             if(this._cpu.mmu.ppu.enabled) {
                 this._cpu.mmu.ppu.ppu_step(this._cpu.mmu, this._frameData, this._backgroundData);
             }
         }
-        this._cpu.mmu.dma_step();
     }
 
     private cpu_step(): number {
         let cycles;
+
         if(!this._cpu.isHalted) {
             const opcode = this.fetch_opcode();
             this.update_devices();
@@ -93,13 +94,12 @@ class Emulator {
                 //Hanlde interrupts
                 interrupt_handler(this);
             }
-
+    
             if(this._cpu.interrupt_enable_pending) {
                 //Accounting for one op delay
                 this._cpu.IME = true;
                 this._cpu.interrupt_enable_pending = false;
             }
-
         } else {
             this.update_devices();
             cycles = 1;

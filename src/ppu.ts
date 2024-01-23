@@ -105,7 +105,8 @@ class PPU {
         if(addr === 0xFF44) {
             console.log("Write current line read only");
         } else if(addr === 0xFF41) {
-            this._lcdStat = val;
+            console.log("Setting stat to: " + val.toString(2));
+            this.check_stat(mmu, val & 0b11111000 | (this._lcdStat & 0b111));
         } else if(addr === 0xFF42) {
             this._scy = val;
         } else if(addr === 0xFF43) {
@@ -121,14 +122,14 @@ class PPU {
                 this._modeTime = 0;
                 this._currentLine = 0;
                 this.mode = 0;
+                this.check_stat(mmu, ((this._lcdStat & 0b11111100) | 0b00));
             } else if(((this._lcdc & 0b10000000) >> 7) === 1) {
                 console.log("PPU ON");
                 this._enabled = true;
-                this.check_lyc(mmu);
-                this.checkMode(mmu, this.mode);
             }
         } else if(addr === 0xFF45) {
             this._lyc = val;
+            this.check_stat(mmu, ((this._lcdStat & 0b11111011) | ((this._currentLine === this._lyc ? 1 : 0 ) << 2)));
         } else if (addr === 0xFF4A) {
             return this._wy = val;
         } else if (addr === 0xFF4B) {
@@ -390,28 +391,69 @@ class PPU {
     }
 
     //Check for lyc = ly condition and request an interrupt condition holds
-    private check_lyc(mmu: MMU) {
-        //Set bit 2 condition
-        if(this._currentLine === this._lyc) {
-            this._lcdStat = this._lcdStat |= (1 << 2);
-            if(this._lcdStat & 0b1000000) {
-                request_interrupt(mmu, 1);
-            }
-        } else {
-            this._lcdStat = this._lcdStat & ~(1 << 2);
-        }
+    // private check_lyc(mmu: MMU) {
+    //     if(this._currentLine === this._lyc) {
+    //         this._lcdStat = this._lcdStat |= (1 << 2);
+    //         if(this._lcdStat & 0b1000000) {
+    //             request_interrupt(mmu, 1);
+    //         }
+    //     } else {
+    //         this._lcdStat = this._lcdStat & ~(1 << 2);
+    //     }
+    // }
+
+    // private checkMode(mmu: MMU, newMode: number) {
+    //     this._lcdStat = (this._lcdStat & 0b11111100) | newMode;
+    //     if(this._lcdStat & 0b1000 && newMode === 0) {
+    //         request_interrupt(mmu, 1);
+    //     } else if(this._lcdStat & 0b10000 && newMode === 1) {
+    //         request_interrupt(mmu, 1);
+    //     } else if(this._lcdStat & 0b100000 && newMode === 2) {
+    //         request_interrupt(mmu, 1);
+    //     }
+    // }
+
+    //Returns the state 
+    private get_interrupt_line(val: number): boolean {
+        return (((val & 0b01000000) !== 0) && ((val & 0b00000100) !== 0))
+        || (((val & 0b00100000) !== 0) && ((val & 0b11) === 2))
+        || (((val & 0b00010000) !== 0) && ((val & 0b11) === 1))
+        || (((val & 0b00001000) !== 0) && ((val & 0b11) === 0))
     }
 
-    private checkMode(mmu: MMU, newMode: number) {
-        this._lcdStat = (this._lcdStat & 0b11111100) | newMode;
-        if(this._lcdStat & 0b1000 && newMode === 0) {
-            request_interrupt(mmu, 1);
-        } else if(this._lcdStat & 0b10000 && newMode === 1) {
-            request_interrupt(mmu, 1);
-        } else if(this._lcdStat & 0b100000 && newMode === 2) {
+    private check_stat(mmu: MMU, newVal: number) {
+        const prev = this._lcdStat;
+        this._lcdStat = newVal;
+
+        if(!this.get_interrupt_line(prev) && this.get_interrupt_line(this._lcdStat)) {
             request_interrupt(mmu, 1);
         }
+
+        //Testing for low to hi transition for stat interrupt
+        // if((((prev & 0b01000000) | (prev & 0b00100000) | (prev & 0b00010000) | (prev & 0b00001000)) === 0)
+        // && (((newVal & 0b01000000) | (newVal & 0b00100000) | (newVal & 0b00010000) | (newVal & 0b00001000)) !== 0)) {
+        //     console.log("Lo = " + prev.toString(2) + " Hi = " + newVal.toString(2));
+        //     if(this._lcdStat & 0b01000000 && this._lcdStat & 0b100) {
+        //         console.log("Stat requested");
+        //         request_interrupt(mmu, 1);
+        //         return;
+        //     } else if(this._lcdStat & 0b00001000 && (this._lcdStat & 0b11) === 0) {
+        //         console.log("Stat requested");
+        //         request_interrupt(mmu, 1);
+        //         return;
+        //     } else if(this._lcdStat & 0b00010000 && (this._lcdStat & 0b11) === 1) {
+        //         console.log("Stat requested");
+        //         request_interrupt(mmu, 1);
+        //         return;
+        //     } else if(this._lcdStat & 0b00100000 && (this._lcdStat & 0b11) === 2) {
+        //         console.log("Stat requested");
+        //         request_interrupt(mmu, 1);
+        //         return;
+        //     }
+        // }
     }
+
+
 
     //Called in the main loop
     //cycles are the number of cycles from the last cpu execution
@@ -432,7 +474,7 @@ class PPU {
                 if(this._modeTime >= PPU_VRAM_ACCESS_TIME) {
                     this._modeTime = 0;
                     this.mode = PPU_MODE_HBLANK;
-                    this.checkMode(mmu, this.mode);
+                    this.check_stat(mmu, ((this._lcdStat & 0b11111100) | 0b00));
                 }
                 break;
             //HBLANK
@@ -443,17 +485,17 @@ class PPU {
                     this.render_background_scanline(frameData);
                     this.render_oam(frameData);
                     this._currentLine++;
-                    this.check_lyc(mmu);
+                    this.check_stat(mmu, ((this._lcdStat & 0b11111011) | ((this._currentLine === this._lyc ? 1 : 0 ) << 2)));
 
                     if(this._currentLine === DISPLAY_LINES) {
                         //Vblank time!
                         this.mode = PPU_MODE_VBLANK;
                         request_interrupt(mmu, 0);
                         this.put_background_image(backgroundData);
-                        this.checkMode(mmu, this.mode);
+                        this.check_stat(mmu, ((this._lcdStat & 0b11111100) | 0b01));
                     } else {
                         this.mode = PPU_MODE_OAM;
-                        this.checkMode(mmu, this.mode);
+                        this.check_stat(mmu, ((this._lcdStat & 0b11111100) | 0b10));
                     }
                 }
                 break;
@@ -462,14 +504,14 @@ class PPU {
                 if(this._modeTime >= 456) {
                     this._modeTime = 0;
                     this._currentLine++;
-                    this.check_lyc(mmu);
+                    this.check_stat(mmu, ((this._lcdStat & 0b11111011) | ((this._currentLine === this._lyc ? 1 : 0 ) << 2)));
 
                     if(this._currentLine >= DISPLAY_LINES + 10) {
                         this.mode = PPU_MODE_OAM;
-                        this.checkMode(mmu, this.mode);
+                        this.check_stat(mmu, ((this._lcdStat & 0b11111100) | 0b10));
 
                         this._currentLine = 0;
-                        this.check_lyc(mmu);
+                        this.check_stat(mmu, ((this._lcdStat & 0b11111011) | ((this._currentLine === this._lyc ? 1 : 0 ) << 2)));
                     }
                 }
                 break;

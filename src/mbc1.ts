@@ -13,6 +13,8 @@ class MBC1 extends Cartridge {
         super.addExternBank();
         this.ramEnabled = false;
         this.bankingMode = false;
+        super.sizeKB = Math.pow(2, 5 + super.sizeKB);
+        console.log("SIZE KB = " + super.sizeKB);
     }
 
     public writeBankA(addr: number, val: number) {
@@ -35,8 +37,10 @@ class MBC1 extends Cartridge {
             if(this.bankingMode) {
                 bankNum = (this.bankExtern << 5) + bankNum;
             }
-            console.log("Changing to bank: " + bankNum + " (wrote " + val.toString(16) + " to @" + addr.toString(16) + ")");
-            super.bankB = 0x4000 * (bankNum & 0b11111);
+            
+            let bankMask = Math.pow(2, this.romBuf[0x148] + 1) - 1;
+            bankNum &= bankMask;
+            super.bankB = 0x4000 * bankNum;
         }
     }
 
