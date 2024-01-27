@@ -12,19 +12,23 @@ class Emulator {
     private _debug: boolean;
     private _frameData: ImageData;
     private _backgroundData: ImageData;
+    private _scale: number;
 
     changeStateCallback: Function | null = null;
 
     constructor(romData: Uint8Array, vramCanvasContext: CanvasRenderingContext2D, 
         gameScreenCanvasContext: CanvasRenderingContext2D,
         backgroundCanvasContext: CanvasRenderingContext2D,
-        debug: boolean) {
+        debug: boolean,
+        scale: number) {
         this._cpu = new CPUContext(romData, this.update_devices.bind(this));
         this.vramCanvasContext = vramCanvasContext;
         this.gameScreenCanvasContext = gameScreenCanvasContext;
         this.backgroundCanvasContext = backgroundCanvasContext;
         this._debug = debug;
-        this._frameData = this.gameScreenCanvasContext.createImageData(160, 144);
+        this._scale = scale;
+        console.log("New emu of scale: " + scale)
+        this._frameData = this.gameScreenCanvasContext.createImageData(160 * scale, 144 * scale);
         this._backgroundData = this.backgroundCanvasContext.createImageData(256, 256);
     };
 
@@ -62,7 +66,7 @@ class Emulator {
         for(let i = 0; i < 4; i++) {
             this._cpu.mmu.timer.update(this._cpu.mmu);
             if(this._cpu.mmu.ppu.enabled) {
-                this._cpu.mmu.ppu.ppu_step(this._cpu.mmu, this._frameData, this._backgroundData);
+                this._cpu.mmu.ppu.ppu_step(this._cpu.mmu, this._frameData, this._backgroundData, this._scale);
             }
         }
     }
@@ -112,7 +116,7 @@ class Emulator {
             }
         }
 
-        if(this._cpu.mmu.ppu.mode === 1) {
+        if(this._cpu.mmu.ppu.mode === 1 && this._cpu.mmu.ppu.currentLine === 144) {
             this.gameScreenCanvasContext.putImageData(this._frameData, 0, 0);
             //this.backgroundCanvasContext.putImageData(this._backgroundData, 0, 0);
         }

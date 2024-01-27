@@ -65,7 +65,6 @@ function App() {
           break;
       }
     }
-
   }
 
   function handleKeyUp(e: KeyboardEvent) {
@@ -133,7 +132,9 @@ function App() {
         (vramCanvas.current as HTMLCanvasElement).getContext('2d') as CanvasRenderingContext2D, 
         (gameScreenCanvas.current as HTMLCanvasElement).getContext('2d') as CanvasRenderingContext2D,
         (backgroundCanvas.current as HTMLCanvasElement).getContext('2d') as CanvasRenderingContext2D,
-        debug));
+        debug,
+        (gameScreenCanvas.current as HTMLCanvasElement).width / 160
+        ));
     };
     fr.readAsArrayBuffer(currentRom as Blob);
   }
@@ -156,7 +157,7 @@ function App() {
         </>
       }
       <canvas id="vramMap" ref={vramCanvas} width="128" height="192" style={{border: "1px solid #d3d3d3"}}></canvas>
-      <canvas id="gameScreen" ref={gameScreenCanvas} width="160" height = "144" style={{border: "1px solid #d3d3d3"}}></canvas>
+      <canvas id="gameScreen" ref={gameScreenCanvas} width="320" height = "288" style={{border: "1px solid #d3d3d3"}}></canvas>
       <canvas id="background" ref={backgroundCanvas} width="256" height = "256" style={{border: "1px solid #d3d3d3"}}></canvas>
       <input type="file" accept=".gb" onChange={handleSelectFile}/>
       {

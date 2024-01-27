@@ -153,6 +153,10 @@ class PPU {
         return this._frameBuffer;
     }
 
+    public get currentLine(): number {
+        return this._currentLine
+    }
+
     put_background_image(imgData: ImageData) {
         //Just going to render background for now
         let tileStart = 0x9000;
@@ -274,8 +278,40 @@ class PPU {
         return pixelVal;
     }
 
+    put_pixel(imgData: ImageData, x: number, y: number, r: number, g: number, b: number, a: number) {
+        imgData.data[(y * imgData.width + x) * 4] = r;
+        imgData.data[(y * imgData.width + x) * 4 + 1] = g;
+        imgData.data[(y * imgData.width + x) * 4 + 2] = b;
+        imgData.data[(y * imgData.width + x) * 4 + 3] = a;
+    }
+
+    get_pixel(imgData: ImageData, x: number, y: number): {r: number, g: number, b: number, a: number} {
+        return {
+            r: imgData.data[(y * imgData.width + x) * 4],
+            g: imgData.data[(y * imgData.width + x) * 4 + 1],
+            b: imgData.data[(y * imgData.width + x) * 4 + 2],
+            a: imgData.data[(y * imgData.width + x) * 4 + 3],
+        }
+    }
+
+    put_scaled_pixel(imgData: ImageData, startX: number, startY: number, scale: number, r: number, g: number, b: number, a: number) {
+        const p = this.get_pixel(imgData, startX, startY);
+        // if(p.r === r && p.g === g && p.b === b && p.a === a) {
+        //     return;
+        // }
+
+        //Put the first pixel down
+        this.put_pixel(imgData, startX, startY, r, g, b, a);
+        for(let i = 1; i < scale; i++) {
+            //Now account for larger scaling
+            this.put_pixel(imgData, startX + i, startY, r, g, b, a);
+            this.put_pixel(imgData, startX, startY + i, r, g, b, a);
+            this.put_pixel(imgData, startX + i, startY + i, r, g, b, a);
+        }
+    }
+
     //Render a background scanline to the game screen (160 x 144)
-    render_background_scanline(imgData: ImageData) {
+    render_background_scanline(imgData: ImageData, scale: number) {
         //Just going to render background for now
         let tileStart = 0x9000;
         let tileMapOffset = 0x9800;
@@ -301,31 +337,23 @@ class PPU {
             switch(pixelVal) {
                 case 0b00:
                     //Transparent
-                    imgData.data[(this._currentLine * 160 + i) * 4] = 255;
-                    imgData.data[(this._currentLine * 160 + i) * 4 + 1] = 255;
-                    imgData.data[(this._currentLine * 160 + i) * 4 + 2] = 255;
-                    imgData.data[(this._currentLine * 160 + i) * 4 + 3] = 255;
+                    this.put_scaled_pixel(imgData, i * scale, this._currentLine * scale, scale, 255, 255, 255, 255);
+                    //this.put_pixel(imgData, i, this._currentLine, 255, 255, 255, 255);
                     break;
                 case 0b01:
                     //Darkest green
-                    imgData.data[(this._currentLine * 160 + i) * 4] = 48;
-                    imgData.data[(this._currentLine * 160 + i) * 4 + 1] = 98;
-                    imgData.data[(this._currentLine * 160 + i) * 4 + 2] = 48;
-                    imgData.data[(this._currentLine * 160 + i) * 4 + 3] = 255;
+                    this.put_scaled_pixel(imgData, i * scale, this._currentLine * scale, scale, 48, 98, 48, 255);
+                    //this.put_pixel(imgData, i, this._currentLine, 48, 98, 48, 255);
                     break;
                 case 0b10:
                     //Light green
-                    imgData.data[(this._currentLine * 160 + i) * 4] = 139;
-                    imgData.data[(this._currentLine * 160 + i) * 4 + 1] = 172;
-                    imgData.data[(this._currentLine * 160 + i) * 4 + 2] = 15;
-                    imgData.data[(this._currentLine * 160 + i) * 4 + 3] = 255;
+                    this.put_scaled_pixel(imgData, i * scale, this._currentLine * scale, scale, 139, 172, 15, 255);
+                    //this.put_pixel(imgData, i, this._currentLine, 139, 172, 15, 255);
                     break;
                 case 0b11:
                     //Lightest green
-                    imgData.data[(this._currentLine * 160 + i) * 4] = 155;
-                    imgData.data[(this._currentLine * 160 + i) * 4 + 1] = 188;
-                    imgData.data[(this._currentLine * 160 + i) * 4 + 2] = 15;
-                    imgData.data[(this._currentLine * 160 + i) * 4 + 3] = 255;
+                    this.put_scaled_pixel(imgData, i * scale, this._currentLine * scale, scale, 155, 188, 15, 255);
+                    //this.put_pixel(imgData, i, this._currentLine, 155, 188, 15, 255);
                     break;
                 default:
                     console.error("Invalid pixel value found");
@@ -333,14 +361,14 @@ class PPU {
         }
     }
 
-    render_oam(imgData: ImageData) {
+    render_oam(imgData: ImageData, scale: number) {
         for(let i = 0; i < 40; i++) {
             //Only going to do 8x8 mode for now
             const yPos = this.oam_read(0xFE00 + 4 * i);
             const xPos = this.oam_read(0xFE00 + 4 * i + 1);
             const tileIdx = this.oam_read(0xFE00 + 4 * i + 2);
             const attr = this.oam_read(0xFE00 + 4 * i +  3);
-            if(this._currentLine - yPos + 16 < 8 && this._currentLine - yPos + 16 >= 0) {
+            if(this._currentLine - yPos + 16 < 8 && this._currentLine - yPos + 16 >= 0 && xPos < 168) {
                 //Push pixels starting from x value
                 for(let i = 0; i < 8; i++) {
                     const tileAddr = 0x8000 + (tileIdx * 0x10);
@@ -353,34 +381,30 @@ class PPU {
                         yPixelPos = 7 - yPixelPos;
                     }
                     const pixelData = this.get_pixel_val_from_tile(xPixelPos, yPixelPos, tileAddr);
+
+                    const startX = (xPos - 8 + i) * scale;
+                    const startY = this._currentLine * scale;
+
+                    if(startX < 0 || startY < 0 || startX > imgData.width || startY > imgData.height) {
+                        continue;
+                    }
+                
                     switch(pixelData) {
                         case 0b00:
                             //Transparent
-                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4] = 255;
-                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 1] = 255;
-                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 2] = 255;
-                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 3] = 255;
+                            this.put_scaled_pixel(imgData, startX, startY, scale, 255, 255, 255, 255);
                             break;
                         case 0b01:
                             //Darkest green
-                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4] = 48;
-                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 1] = 98;
-                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 2] = 48;
-                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 3] = 255;
+                            this.put_scaled_pixel(imgData, startX, startY, scale, 48, 98, 48, 255);
                             break;
                         case 0b10:
                             //Light green
-                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4] = 139;
-                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 1] = 172;
-                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 2] = 15;
-                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 3] = 255;
+                            this.put_scaled_pixel(imgData, startX, startY, scale, 139, 172, 15, 255);
                             break;
                         case 0b11:
                             //Lightest green
-                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4] = 155;
-                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 1] = 188;
-                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 2] = 15;
-                            imgData.data[(this._currentLine * 160 + xPos - 8 + i) * 4 + 3] = 255;
+                            this.put_scaled_pixel(imgData, startX, startY, scale, 155, 188, 15, 255);
                             break;
                         default:
                             console.error("Invalid pixel value found");
@@ -424,40 +448,17 @@ class PPU {
     private check_stat(mmu: MMU, newVal: number) {
         const prev = this._lcdStat;
         this._lcdStat = newVal;
-
+        
         if(!this.get_interrupt_line(prev) && this.get_interrupt_line(this._lcdStat)) {
             request_interrupt(mmu, 1);
         }
-
-        //Testing for low to hi transition for stat interrupt
-        // if((((prev & 0b01000000) | (prev & 0b00100000) | (prev & 0b00010000) | (prev & 0b00001000)) === 0)
-        // && (((newVal & 0b01000000) | (newVal & 0b00100000) | (newVal & 0b00010000) | (newVal & 0b00001000)) !== 0)) {
-        //     console.log("Lo = " + prev.toString(2) + " Hi = " + newVal.toString(2));
-        //     if(this._lcdStat & 0b01000000 && this._lcdStat & 0b100) {
-        //         console.log("Stat requested");
-        //         request_interrupt(mmu, 1);
-        //         return;
-        //     } else if(this._lcdStat & 0b00001000 && (this._lcdStat & 0b11) === 0) {
-        //         console.log("Stat requested");
-        //         request_interrupt(mmu, 1);
-        //         return;
-        //     } else if(this._lcdStat & 0b00010000 && (this._lcdStat & 0b11) === 1) {
-        //         console.log("Stat requested");
-        //         request_interrupt(mmu, 1);
-        //         return;
-        //     } else if(this._lcdStat & 0b00100000 && (this._lcdStat & 0b11) === 2) {
-        //         console.log("Stat requested");
-        //         request_interrupt(mmu, 1);
-        //         return;
-        //     }
-        // }
     }
 
 
 
     //Called in the main loop
     //cycles are the number of cycles from the last cpu execution
-    ppu_step(mmu: MMU, frameData: ImageData, backgroundData: ImageData) {
+    ppu_step(mmu: MMU, frameData: ImageData, backgroundData: ImageData, scale: number) {
         this._modeTime++;
 
         //What mode are we currently in?
@@ -484,8 +485,8 @@ class PPU {
                 if(this._modeTime >= PPU_HBLANK_TIME) {
                     this._modeTime = 0;
                     //Render scanline here
-                    this.render_background_scanline(frameData);
-                    this.render_oam(frameData);
+                    this.render_background_scanline(frameData, scale);
+                    this.render_oam(frameData, scale);
                     this._currentLine++;
                     this.check_stat(mmu, ((this._lcdStat & 0b11111011) | ((this._currentLine === this._lyc ? 1 : 0 ) << 2)));
                     if(this._currentLine === DISPLAY_LINES) {
@@ -493,7 +494,6 @@ class PPU {
                         this.mode = PPU_MODE_VBLANK;
                         request_interrupt(mmu, 0);
                         this.put_background_image(backgroundData);
-                        
                     } else {
                         this.mode = PPU_MODE_OAM;
                         
