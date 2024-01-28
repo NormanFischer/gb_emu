@@ -22,11 +22,9 @@ class MBC1 extends Cartridge {
 
     public writeBankA(addr: number, val: number) {
         if(addr < 0x2000 && ((val & 0xF) === 0xA || (val & 0xF0 >> 1) === 0xA)) {
-            console.log("Ram enabled");
             this.ramEnabled = true;
             val = 1;
         } else if(addr < 0x2000) {
-            console.log("Ram disabled");
             this.ramEnabled = false;
             val = 0;
         } else if(addr < 0x4000) {
@@ -52,7 +50,6 @@ class MBC1 extends Cartridge {
     public writeBankB(addr: number, val: number) {
         if(addr < 0x6000) {
             val = super.bankExtern = val & 0b11;
-            console.log("New extern bank: " + super.bankExtern);
         } else if(addr < 0x8000) {
             this.bankingMode = ((val & 0b1) === 1);
             if(this.bankingMode) {

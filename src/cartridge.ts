@@ -49,7 +49,6 @@ abstract class Cartridge {
     }
 
     public set bankB(bankB: number) {
-        console.log("Setting bankB to " + bankB.toString(16));
         this._bankB = bankB;
     }
 
@@ -58,7 +57,6 @@ abstract class Cartridge {
     }
 
     public set bankExtern(bankExtern: number) {
-        console.log("Setting bankExtern to " + bankExtern.toString(16));
         this._bankExtern = bankExtern;
     }
 
@@ -93,13 +91,11 @@ abstract class Cartridge {
 
     public externRead(addr: number): number {
         const offset = addr - 0xA000;
-        console.log("Extern read bank @ " + this.bankExtern);
         return (this.externRam[this.bankExtern])[offset];
     }
 
     public externWrite(addr: number, val: number) {
         const offset = addr - 0xA000;
-        console.log("Extern write bank @ " + this.bankExtern);
         (this.externRam[this.bankExtern])[offset] = val;
     }
 

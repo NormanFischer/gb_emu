@@ -28,6 +28,7 @@ function App() {
   function handleKeyDown(e: KeyboardEvent) {
     if(emu != null) {
       console.log("Key down");
+      e.preventDefault();
       switch(e.key) {
         //Start
         case " ":

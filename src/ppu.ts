@@ -269,7 +269,6 @@ class PPU {
 
     //Given relative coordinates and a base tile address in vram, return the pixel value
     get_pixel_val_from_tile(x: number, y: number, tileAddr: number): number {
-        //console.log("Rendering x = " + x + " y = " + y + " from tilenum: " + tileAddr.toString(16));
         const lowByte = this.vram_read(tileAddr + y * 2);
         const highByte = this.vram_read(tileAddr + y * 2 + 1);
         const lowBit = (lowByte & ( 1 << 7 - x )) >> 7 - x;
@@ -295,11 +294,6 @@ class PPU {
     }
 
     put_scaled_pixel(imgData: ImageData, startX: number, startY: number, scale: number, r: number, g: number, b: number, a: number) {
-        const p = this.get_pixel(imgData, startX, startY);
-        // if(p.r === r && p.g === g && p.b === b && p.a === a) {
-        //     return;
-        // }
-
         //Put the first pixel down
         this.put_pixel(imgData, startX, startY, r, g, b, a);
         for(let i = 1; i < scale; i++) {
@@ -315,10 +309,16 @@ class PPU {
         //Just going to render background for now
         let tileStart = 0x9000;
         let tileMapOffset = 0x9800;
+        let windowMapOffset = 0x9800;
 
         //BG tile map offset
         if(this._lcdc & (1 << 3)) {
             tileMapOffset = 0x9C00;
+        }
+
+        //Window tile map offset
+        if(this._lcdc & (1 << 6)) {
+            windowMapOffset = 0x9C00;
         }
 
         //Addressing mode
@@ -329,31 +329,48 @@ class PPU {
         //Draw the pixels horizontally
         for(let i = 0; i < 160; i++) {
             //Get tile base from vram
-            let tileNum = this.get_tile_num_from_pixel(tileMapOffset, (this._scx + i) & 0xFF, (this._scy + this._currentLine) & 0xFF);
-            if(tileStart === 0x9000) {
-                tileNum = u8Toi8(tileNum);
+            let tileNum;
+            let pixelVal;
+            let xPos;
+            let yPos;
+
+            if(i >= this._wx - 7 && i < this._wx + 166 - 7 && this._currentLine >= this._wy && this._currentLine < this._wy + 143 && this._lcdc & (1 << 5)) {
+                //Get the window pixel instead
+                xPos = i - this._wx + 7;
+                yPos = this._currentLine - this._wy;
+                tileNum = this.get_tile_num_from_pixel(windowMapOffset, xPos, yPos);
+                if(tileStart === 0x9000) {
+                    tileNum = u8Toi8(tileNum);
+                }
+                pixelVal = this.get_pixel_val_from_tile(xPos % 8, yPos % 8, tileStart + (tileNum * 0x10));
+            } else {
+                xPos = (this._scx + i) & 0xFF;
+                yPos = (this._scy + this._currentLine) & 0xFF;
+                tileNum = this.get_tile_num_from_pixel(tileMapOffset, xPos, yPos);
+                //Signed addressing mode
+                if(tileStart === 0x9000) {
+                    tileNum = u8Toi8(tileNum);
+                }
+                pixelVal = this.get_pixel_val_from_tile(xPos % 8, yPos % 8, tileStart + (tileNum * 0x10));
             }
-            const pixelVal = this.get_pixel_val_from_tile(((this._scx + i) & 0xFF) % 8, ((this._scy + this._currentLine) & 0xFF) % 8, tileStart + (tileNum * 0x10));
+
+            
             switch(pixelVal) {
                 case 0b00:
                     //Transparent
                     this.put_scaled_pixel(imgData, i * scale, this._currentLine * scale, scale, 255, 255, 255, 255);
-                    //this.put_pixel(imgData, i, this._currentLine, 255, 255, 255, 255);
                     break;
                 case 0b01:
                     //Darkest green
                     this.put_scaled_pixel(imgData, i * scale, this._currentLine * scale, scale, 48, 98, 48, 255);
-                    //this.put_pixel(imgData, i, this._currentLine, 48, 98, 48, 255);
                     break;
                 case 0b10:
                     //Light green
                     this.put_scaled_pixel(imgData, i * scale, this._currentLine * scale, scale, 139, 172, 15, 255);
-                    //this.put_pixel(imgData, i, this._currentLine, 139, 172, 15, 255);
                     break;
                 case 0b11:
                     //Lightest green
                     this.put_scaled_pixel(imgData, i * scale, this._currentLine * scale, scale, 155, 188, 15, 255);
-                    //this.put_pixel(imgData, i, this._currentLine, 155, 188, 15, 255);
                     break;
                 default:
                     console.error("Invalid pixel value found");
